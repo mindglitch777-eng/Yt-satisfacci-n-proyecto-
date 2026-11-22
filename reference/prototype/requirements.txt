@@ -1,0 +1,5 @@
+pymunk>=7
+pycairo
+numpy
+google-api-python-client
+google-auth
