@@ -24,6 +24,7 @@ class AudioEngine:
         self.hits = []      # (t, energy 0..1, kind, pan -1..1, tension 0..1)
         self.sigs = []      # (t, kind, pan, gain)
         self.fx = []        # (t, name, gain)
+        self.voices = []    # (t, key, kind, pan, gain)
         self.tension = []   # (t, 0..1) curva para pitch/densidad/bed
         self.climax = None
         self._tones = {}
@@ -35,6 +36,9 @@ class AudioEngine:
 
     def signature(self, t, kind, pan=0.0, gain=0.6):
         self.sigs.append((t, kind, pan, gain))
+
+    def voice(self, t, key, kind="short", pan=0.0, gain=1.0):
+        self.voices.append((t, key, kind, pan, gain))
 
     def event(self, t, name, gain=1.0):
         self.fx.append((t, name, gain))
@@ -93,7 +97,6 @@ class AudioEngine:
         dry = np.zeros((n, 2), np.float32)    # impactos
         mus = np.zeros((n, 2), np.float32)    # tonos (van a reverb)
         rain = np.zeros((n, 2), np.float32)   # granular
-        bed = np.zeros((n, 2), np.float32)    # pad + beat
         rng = self.rng
 
         # --- limitador por frame + granular ---
@@ -109,11 +112,14 @@ class AudioEngine:
                 i = int(t * SR) + int(rng.integers(0, 120))
                 key = (kind, int(e * 4))
                 if key not in imp_cache or rng.random() < 0.3:
-                    imp_cache[key] = synth.impact(kind, e, rng)
+                    imp_cache[key] = (synth.squish(rng, e) if kind == "squish" else
+                                      synth.clack(rng, e) if kind == "clack" else synth.impact(kind, e, rng))
                 gl, gr = self._pan(pan)
                 g = (0.12 + 0.35 * e) / (1 + 0.5 * k)
                 self._add(dry, i, imp_cache[key], g * gl, g * gr)
                 # tono: velocidad -> grado de la escala, tensión -> transpone hacia arriba
+                if kind == "clack":
+                    continue
                 step = int(e * 6) + int(ten * 8) + 5
                 if step == last_step:
                     step += 1 if rng.random() < 0.5 else -1
@@ -123,7 +129,7 @@ class AudioEngine:
             if rest:   # lluvia: granos chiquitos, cantidad acotada, nivel ~ log(n)
                 g_all = 0.05 * np.log1p(len(rest)) / np.sqrt(min(len(rest), GRAINS_PER_FRAME))
                 for t, e, kind, pan, ten in rest[:GRAINS_PER_FRAME]:
-                    w = synth.impact("click", e, rng) * (0.4 + e)
+                    w = synth.clack(rng, e) * (0.5 + e)
                     gl, gr = self._pan(pan)
                     self._add(rain, int(t * SR) + int(rng.integers(0, SR // self.fps)), w, g_all * gl, g_all * gr)
 
@@ -131,31 +137,13 @@ class AudioEngine:
             gl, gr = self._pan(pan)
             self._add(mus, int(t * SR), synth.signature(kind, rng), 0.22 * gain * gl, 0.22 * gain * gr)
 
-        # --- pista base: pad + beat suave ---
-        ten = self._tension_curve()
-        tt = np.arange(n, dtype=np.float32) / SR
-        chord = [0, self.scale[2], 12, 12 + self.scale[1]]
-        pad = np.zeros(n, np.float32)
-        for j, semi in enumerate(chord):
-            f = self.root / 2 * 2 ** (semi / 12)
-            for det in (-0.12, 0.12):
-                pad += np.sin(2 * np.pi * (f + det) * tt + j).astype(np.float32)
-        ten = np.maximum(ten, 0.3)
-        pad *= (0.5 + 0.5 * np.sin(2 * np.pi * 0.2 * tt)) * 0.02 * (0.6 + 0.8 * ten)
-        bed[:, 0] += pad
-        bed[:, 1] += np.roll(pad, 300)
-        beat = 60 / self.bpm
-        kk, hh = synth.kick(rng), synth.hat(rng)
-        b = 0
-        end = self.climax if self.climax else self.dur
-        while b * beat < end:
-            t = b * beat
-            lvl = float(np.interp(t, tt[:: SR // 10], ten[:: SR // 10]))
-            if lvl > 0.15:
-                self._add(bed, int(t * SR), kk, 0.22 * lvl, 0.22 * lvl)
-            if lvl > 0.35:
-                self._add(bed, int((t + beat / 2) * SR), hh, 0.15 * lvl, 0.12 * lvl)
-            b += 1
+        # --- voces brainrot ---
+        from audio.voices import voice as get_voice
+        for t, key, kind, pan, gain in self.voices:
+            w = get_voice(key, kind)
+            if w is not None:
+                gl, gr = self._pan(pan * 0.5)
+                self._add(dry, int(t * SR), w, 0.32 * gain * gl, 0.32 * gain * gr)
 
         # --- efectos (boom, riser, etc.) ---
         for t, name, gain in self.fx:
@@ -168,18 +156,15 @@ class AudioEngine:
             elif name == "slam":
                 w = synth.impact("metal", 1.0, rng)
                 self._add(dry, int(t * SR), w, 0.35 * gain, 0.35 * gain)
+            elif name == "pop":
+                w = synth.pop(rng, gain)
+                self._add(dry, int(t * SR), w, 0.22, 0.22)
             elif name == "chord":   # acorde de victoria, arpegiado
                 for j, step in enumerate((14, 16, 17, 19, 21)):
                     self._add(mus, int((t + j * 0.07) * SR), self._note(step), 0.16 * gain, 0.16 * gain)
 
-        # --- sidechain: los impactos empujan el bed hacia abajo ---
-        env = np.abs(dry[:, 0]) + np.abs(dry[:, 1])
-        env = synth.lowpass(env, 1 / (SR * 0.04))
-        duck = 1 / (1 + 6 * env)
-        bed *= duck[:, None]
-
         wet = self._reverb(mus + 0.5 * rain)
-        mix = dry + mus + rain + bed + 0.35 * wet
+        mix = dry + mus + rain + 0.3 * wet
 
         # --- silencio de 0.3s antes del clímax ---
         if self.climax:
@@ -203,7 +188,7 @@ class AudioEngine:
         y /= max(1e-6, np.max(np.abs(y))) / 0.89
         return np.tanh(y * 1.1) / np.tanh(1.1)
 
-    def save(self, path, target_lufs=-14.0, ceiling_db=-2.5):
+    def save(self, path, target_lufs=-14.0, ceiling_db=-3.2):
         y = self.render()
         # normalizado propio: medir LUFS -> ganancia -> limitador lookahead (2 pasadas)
         for _ in range(2):

@@ -1,8 +1,8 @@
-"""MARTILLO MULTIPLICADOR — batalla de brainrots.
+"""MARTILLO APLASTADOR — batalla de brainrots (ver reference/formats/hammer/SPEC.md).
 
-Una ficha de cada brainrot arranca en la arena. Cada vez que el martillo golpea una ficha,
-esa ficha se multiplica (+N de su equipo). ¿Cuál brainrot llena el círculo?
-El Pacer programa el lleno entre el seg 45 y 55, los cambios de líder y un near-miss.
+El martillo APRIETA una ficha contra la pared → se aplasta → sobrevive y nacen +2 de su equipo.
+La regla en pantalla es fija; el Pacer solo regula la velocidad del martillo y hace que algunas
+fichas "se escurran" (near-miss) para cumplir el guion de líderes y el lleno entre el seg 44 y 52.
 """
 import math
 import pymunk
@@ -14,10 +14,10 @@ from engine.pacer import Pacer
 from characters import get as get_char
 
 TXT = {
-    "en": {"hook1": "WHICH BRAINROT", "hook2": "TAKES OVER THE CIRCLE?", "pick": "COMMENT YOUR PICK",
+    "en": {"hook1": "WHICH BRAINROT", "hook2": "FILLS THE CIRCLE?", "pick": "COMMENT YOUR PICK", "rule": "EVERY SQUASH = +{n}",
            "full": "FULL!", "wins": "WINS!", "close": "SO CLOSE!", "cta1": "WHO WINS NEXT ROUND?",
            "cta2": "SUBSCRIBE TO SEE", "lead": "LEADING"},
-    "es": {"hook1": "¿QUÉ BRAINROT", "hook2": "SE ADUEÑA DEL CÍRCULO?", "pick": "COMENTÁ TU ELEGIDO",
+    "es": {"hook1": "¿QUÉ BRAINROT", "hook2": "LLENA EL CÍRCULO?", "pick": "COMENTÁ TU ELEGIDO", "rule": "CADA APLASTADA = +{n}",
            "full": "¡LLENO!", "wins": "¡GANA!", "close": "¡CASI!", "cta1": "¿QUIÉN GANA LA PRÓXIMA?",
            "cta2": "SUSCRIBITE PARA VERLO", "lead": "VA GANANDO"},
 }
@@ -40,8 +40,9 @@ class Hammer(Sim):
         self.arm.position = (self.cx, self.cy)
         self.space.add(self.arm)
         self.heads = []
-        L = self.R * g["arm_len"]
         hw, hh = g["head_w"], g["head_h"]
+        # la cara del martillo queda a menos de un diámetro de la pared: la ficha no pasa, se aplasta
+        L = self.R - 1.1 * g["chip_r"] - hh / 2
         for k in range(g["heads"]):
             a = 2 * math.pi * k / g["heads"]
             ca, sa = math.cos(a), math.sin(a)
@@ -57,84 +58,118 @@ class Hammer(Sim):
         self.head_glow = 0.0
         self.counts = [0] * len(self.chars)
         self.pending = []
+        self.squashes = []
+        self.speed_k = 1.0
+        self.last_voice = -9.0
         self.near_miss_shown = 0.0
         self.lead_flash = 0.0
         self.last_leader = None
         # arranque: 1 ficha por equipo, ya en movimiento (hook: algo se mueve en el frame 1)
         for i, ch in enumerate(self.chars):
-            a = -math.pi / 2 + (i - (len(self.chars) - 1) / 2) * 0.7
-            x, y = self.cx + 0.6 * self.R * math.cos(a), self.cy + 0.6 * self.R * math.sin(a)
-            self.add_chip(ch, i, x, y, self.rng.uniform(-420, 420), self.rng.uniform(-200, 100))
-            self.counts[i] += 1
+            for j in range(g.get("start_n", 2)):
+                a = -math.pi / 2 + (i - (len(self.chars) - 1) / 2) * 0.75 + (j - 0.5) * 0.22
+                rr = (0.62 - 0.12 * j) * self.R
+                x, y = self.cx + rr * math.cos(a), self.cy + rr * math.sin(a)
+                self.add_chip(ch, i, x, y, self.rng.uniform(-420, 420), self.rng.uniform(-200, 100))
+                self.counts[i] += 1
 
     # ---------- eventos ----------
     def on_hit(self, ch, arb):
-        n = self.pacer.spawn(self.t, ch.team, self.counts, self.g["mult"] - 1)
-        total = sum(self.counts)
-        if n == 0 and total < self.pacer.desired(self.t) * 0.6:
-            n = 1   # red de seguridad: nunca se estanca
         x, y = ch.body.position
-        self.audio.hit(self.t, 0.9, "metal", self.pan(x), self.tension())
-        self.head_glow = 1.0
-        ch.flash = 0.25
-        if n <= 0:
+        d = math.hypot(x - self.cx, y - self.cy)
+        total = max(1, sum(self.counts))
+        sh = self.pacer.shares(self.t)
+        lagging = self.counts[ch.team] / total < sh[ch.team] * 0.8
+        reach = 3.6 if lagging else 2.6        # al que va atrás se lo aplasta un poco más lejos de la pared
+        if d < self.R - reach * ch.r:          # golpe en el aire: solo rebote
+            self.audio.hit(self.t, 0.35, "metal", self.pan(x), self.tension())
             return
-        if ch.char.power == "split":
-            n += 1
-        self.pending.append((ch, n))
+        if self.done_at is not None:
+            return
+        # near-miss guionado: solo se escurre si su equipo va MUY pasado del guion y otro va atrasado
+        mine = self.counts[ch.team] / total
+        behind = any(self.counts[i] / total < sh[i] * 0.85 for i in range(len(sh)) if i != ch.team)
+        if self.counts[ch.team] > 5 and mine > sh[ch.team] * 1.15 and behind and self.rng.random() < 0.85:
+            # se escurre: sale disparada hacia el centro (casi la aplastan)
+            ux, uy = (self.cx - x) / d, (self.cy - y) / d
+            ch.body.velocity = (ux * 900, uy * 900)
+            ch.flash = 0.15
+            self.audio.hit(self.t, 0.5, ch.char.sound["kind"], self.pan(x), self.tension())
+            return
+        self.pending.append(ch)
 
     def tension(self):
         return min(1.0, sum(self.counts) / self.capacity) ** 1.3
 
-    def _spawn(self, ch, n):
+    def _squash(self, ch):
+        """la ficha queda aplastada contra la pared, sobrevive y nacen +N detrás del martillo."""
         x, y = ch.body.position
-        vx, vy = ch.body.velocity
-        power = ch.char.power
-        room = self.capacity - sum(self.counts)
-        n = max(0, min(n, room))
+        n = self.g["mult"] + (1 if ch.char.power == "split" else 0)
+        n = max(0, min(n, self.capacity - sum(self.counts)))
+        dx, dy = x - self.cx, y - self.cy
+        d = math.hypot(dx, dy) or 1
+        ux, uy = dx / d, dy / d
+        tx, ty = -uy, ux                                   # tangente (sentido de giro +)
+        sgn = -1 if self.arm.angular_velocity > 0 else 1    # detrás del martillo
+        self.squashes.append([x, y, math.degrees(math.atan2(dy, dx)), ch.char, ch.r, 0.0])
+        # la original sale disparada hacia adentro por detrás de la cabeza
+        back = self.g["head_w"] / 2 + ch.r * 1.3
+        ch.body.position = (x + tx * sgn * back - ux * ch.r * 0.6, y + ty * sgn * back - uy * ch.r * 0.6)
+        ch.body.velocity = (-ux * 650 + tx * sgn * 250, -uy * 650 + ty * sgn * 250)
+        ch.flash, ch.born = 0.2, self.t
         for i in range(n):
-            a = self.rng.uniform(0, 2 * math.pi)
-            sp = self.rng.uniform(250, 520) * (1.6 if power == "double_bounce" else 1.0)
-            off = ch.r * 1.2
-            nx, ny = x + off * math.cos(a), y + off * math.sin(a)
-            d = math.hypot(nx - self.cx, ny - self.cy)
-            lim = self.R - ch.r - 2
-            if d > lim:
-                nx, ny = self.cx + (nx - self.cx) * lim / d, self.cy + (ny - self.cy) * lim / d
-            self.add_chip(ch.char, ch.team, nx, ny, vx * 0.4 + sp * math.cos(a), vy * 0.4 + sp * math.sin(a))
+            k = i + 1
+            px = x + tx * sgn * back - ux * ch.r * (0.6 + 2.15 * k)
+            py = y + ty * sgn * back - uy * ch.r * (0.6 + 2.15 * k)
+            sp = self.rng.uniform(450, 750) * (1.4 if ch.char.power == "double_bounce" else 1.0)
+            a = math.atan2(-uy, -ux) + self.rng.uniform(-0.7, 0.7)
+            self.add_chip(ch.char, ch.team, px, py, sp * math.cos(a), sp * math.sin(a))
             self.counts[ch.team] += 1
-        if n == 0:
-            return
         col = ch.char.color
-        self.particles.burst(x, y, col, n=10 + 2 * n, speed=520)
-        self.popups.add(x, y - ch.r - 10, f"+{n}", col)
-        self.audio.signature(self.t, ch.char.sound["kind"], self.pan(x), 0.5 + 0.5 * self.tension())
-        if power == "slam":   # onda expansiva que empuja vecinas
+        self.particles.burst(x, y, col, n=16, speed=600)
+        self.particles.burst(x, y, (1, 1, 1), n=6, speed=300, size=3)
+        if n:
+            self.popups.add(x - ux * 60, y - uy * 60 - 20, f"+{n}", col, 54)
+        ten = self.tension()
+        pan = self.pan(x)
+        self.audio.hit(self.t, 0.9, "metal", pan, ten)
+        self.audio.hit(self.t + 0.004, 0.85, "squish", pan, ten)
+        for i in range(n):
+            self.audio.event(self.t + 0.06 + 0.05 * i, "pop", 1.0 + 0.6 * ten + 0.12 * i)
+        if self.t - self.last_voice > self.g.get("voice_gap", 2.4):
+            self.audio.voice(self.t + 0.05, ch.char.key, "short", pan)
+            self.last_voice = self.t
+        if ch.char.power == "slam":   # onda expansiva: empuja a las vecinas
             for o in self.chips:
-                dx, dy = o.body.position.x - x, o.body.position.y - y
-                d2 = dx * dx + dy * dy
+                ox, oy = o.body.position.x - x, o.body.position.y - y
+                d2 = ox * ox + oy * oy
                 if 1 < d2 < (ch.r * 6) ** 2:
-                    d = math.sqrt(d2)
-                    o.body.apply_impulse_at_local_point((0, 0), (0, 0))
-                    o.body.velocity = (o.body.velocity.x + dx / d * 380, o.body.velocity.y + dy / d * 380)
-            self.audio.event(self.t, "slam", 0.6)
-            self.cam.kick(0.25)
-        elif power == "double_bounce":
-            ch.body.velocity = (ch.body.velocity.x * 1.5, ch.body.velocity.y * 1.5)
-        self.cam.kick(0.06)
+                    dd = math.sqrt(d2)
+                    o.body.velocity = (o.body.velocity.x + ox / dd * 380, o.body.velocity.y + oy / dd * 380)
+            self.cam.kick(0.22)
+        self.cam.kick(0.12)
 
     def update(self):
         g = self.g
-        boost = 1 + 0.5 * self.tension()
+        total = sum(self.counts)
+        ratio = total / max(1.0, self.pacer.desired(self.t))
+        target = 1.8 if ratio < 0.7 else (0.3 if ratio > 1.15 else (0.6 if ratio > 1.0 else 1.0 + 0.3 * self.tension()))
+        if self.done_at is not None:
+            target = 0.0
+        self.speed_k += (target - self.speed_k) * min(1, self.dt * 1.5)
+        boost = self.speed_k
         if g["motion"] == "spin":
             self.arm.angular_velocity = g["speed"] * boost
         else:   # péndulo
             self.arm.angular_velocity = g["speed"] * 2.4 * math.cos(self.t * g["speed"] * 1.3) * boost
-        for ch, n in self.pending:
+        for ch in self.pending:
             if ch in self.chips:
-                self._spawn(ch, n)
+                self._squash(ch)
         self.pending = []
-        self.keep_alive(220 + 200 * self.tension())
+        for sq in self.squashes:
+            sq[5] += self.dt
+        self.squashes = [sq for sq in self.squashes if sq[5] < 0.22]
+        self.keep_alive(140)
         self.contain_circle(self.cx, self.cy, self.R)
         self.head_glow = max(0.0, self.head_glow - self.dt * 4)
         if self.frame % 6 == 0:
@@ -157,6 +192,7 @@ class Hammer(Sim):
             self.audio.event(self.t - 0.3, "riser", 1.0)
             self.audio.event(self.t, "boom", 1.0)
             self.audio.event(self.t + 0.05, "chord", 1.0)
+            self.audio.voice(self.t + 1.0, self.chars[lead].key, "full", 0.0, 1.2)
             self.audio.set_tension(self.t, 1.0)
             self.cam.kick(1.0)
             self.cam.zoom_target = 1.08
@@ -176,9 +212,26 @@ class Hammer(Sim):
         # piso de la arena (disco translúcido)
         c.drawCircle(self.cx, self.cy, self.R, skia.Paint(Color4f=rgb(self.pal["floor"], 0.35), AntiAlias=True))
         self.draw_chips(c)
+        self.draw_squashes(c)
         self.draw_hammer(c)
         self.particles.draw(c)
         self.popups.draw(c)
+
+    def draw_squashes(self, c):
+        """ficha aplastada: se achata contra la pared y se ensancha (squash & stretch)."""
+        for x, y, ang, char, r, age in self.squashes:
+            k = age / 0.22
+            sq = 0.35 + 0.65 * k
+            img, half = char.sprite(r)
+            p = skia.Paint(AntiAlias=True)
+            p.setAlphaf(1 - k)
+            c.save(); c.translate(x, y); c.rotate(ang)
+            c.scale(sq, 1.0 / sq * 0.9)
+            c.drawImage(img, -half, -half, paint=p)
+            c.restore()
+            ring = skia.Paint(Color4f=rgb(char.color, 0.8 * (1 - k)), AntiAlias=True,
+                              Style=skia.Paint.kStroke_Style, StrokeWidth=6 * (1 - k) + 1)
+            c.drawCircle(x, y, r * (1 + 2.5 * k), ring)
 
     def draw_hammer(self, c):
         hw, hh = self.g["head_w"], self.g["head_h"]
@@ -217,6 +270,8 @@ class Hammer(Sim):
         if self.t < 3.0:
             a = 1.0 if self.t < 2.5 else (3.0 - self.t) / 0.5
             draw_text(c, L["pick"], W / 2, 318, 46, (1, 1, 1), stroke=8, alpha=a)
+        else:
+            draw_text(c, L["rule"].format(n=self.g["mult"]), W / 2, 318, 46, (1, 1, 1), stroke=8)
         # marcador: quién va ganando
         self.draw_scoreboard(c, 360)
         # contador total + barra de llenado

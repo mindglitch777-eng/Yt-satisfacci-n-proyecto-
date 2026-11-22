@@ -129,3 +129,28 @@ def riser(dur, rng):
     n = noise(len(x), rng)
     hp = n - lowpass(n, 0.05)
     return (hp * (x / dur) ** 2 * 0.5).astype(np.float32)
+
+
+def squish(rng, energy=1.0):
+    """aplastado: thunk grave + ruido "húmedo" que cae de pitch."""
+    x = t_axis(0.22)
+    f = 220 * np.exp(-x * 14) + 60
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-x * 18)
+    n = noise(len(x), rng)
+    wet = (lowpass(n, 0.12) * 3) * np.exp(-x * 26) * (0.5 + 0.5 * np.sin(2 * np.pi * np.cumsum(900 * np.exp(-x * 20) + 80) / SR))
+    return ((body * 0.9 + wet * 0.7) * (0.6 + 0.4 * energy)).astype(np.float32)
+
+
+def pop(rng, pitch=1.0):
+    """pop de multiplicación: burbuja brillante que sube."""
+    x = t_axis(0.11)
+    f = (600 + 2600 * (1 - np.exp(-x * 60))) * pitch
+    return (np.sin(2 * np.pi * np.cumsum(f) / SR) * env_ad(len(x), 0.001, 38)).astype(np.float32)
+
+
+def clack(rng, energy=1.0):
+    """canica contra canica: dos parciales altos inarmónicos, cortísimo."""
+    x = t_axis(0.05)
+    f1 = rng.uniform(2600, 3800)
+    w = np.sin(2 * np.pi * f1 * x) + 0.6 * np.sin(2 * np.pi * f1 * 2.31 * x)
+    return (w * np.exp(-x * 120) * (0.4 + 0.6 * energy) * 0.6).astype(np.float32)

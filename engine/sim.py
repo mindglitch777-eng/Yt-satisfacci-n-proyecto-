@@ -123,7 +123,7 @@ class Sim:
             e = min(1.0, arb.total_impulse.length / (a.char.mass * 1100))
             if e > 0.12:
                 self._wall_budget -= 1
-                self.audio.hit(self.t, e * 0.6, "click", self.pan(a.body.position.x), self.tension())
+                self.audio.hit(self.t, e * 0.6, "clack", self.pan(a.body.position.x), self.tension())
 
     def pan(self, x):
         return max(-1, min(1, (x - W / 2) / (W / 2))) * 0.7
