@@ -1,0 +1,5 @@
+pymunk>=7
+skia-python>=138
+numpy
+google-api-python-client
+google-auth
