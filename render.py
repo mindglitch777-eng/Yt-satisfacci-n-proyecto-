@@ -1,18 +1,19 @@
 """python render.py --seed 7 [--fps 60] [--preview] [--seconds N]"""
 import argparse, json
-from variation import random_genome
+from variation import random_genome, punch_genome
 from formats import FORMATS
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--format", default="punch")
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--out", default=None)
     ap.add_argument("--seconds", type=float, default=None)
     ap.add_argument("--preview", action="store_true", help="guarda 6 frames PNG para revisar")
     a = ap.parse_args()
-    g = random_genome(a.seed)
+    g = punch_genome(a.seed) if a.format == "punch" else random_genome(a.seed)
     out = a.out or f"out/{g['format']}_{a.seed}.mp4"
     sim = FORMATS[g["format"]](g, fps=a.fps)
     prev = ()

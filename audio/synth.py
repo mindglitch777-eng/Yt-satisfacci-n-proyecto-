@@ -154,3 +154,13 @@ def clack(rng, energy=1.0):
     f1 = rng.uniform(2600, 3800)
     w = np.sin(2 * np.pi * f1 * x) + 0.6 * np.sin(2 * np.pi * f1 * 2.31 * x)
     return (w * np.exp(-x * 120) * (0.4 + 0.6 * energy) * 0.6).astype(np.float32)
+
+
+def punch(rng, energy=1.0):
+    """golpe de guante: bombo grave + "thwack" de cuero."""
+    x = t_axis(0.3)
+    f = 55 + 140 * np.exp(-x * 35)
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-x * 11)
+    n = noise(len(x), rng)
+    leather = lowpass(n, 0.25) * np.exp(-x * 70) * 2.2
+    return ((body + leather) * (0.55 + 0.45 * energy)).astype(np.float32)

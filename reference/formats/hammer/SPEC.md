@@ -1,3 +1,5 @@
+# OBSOLETO: reemplazado por `formats/punch.py` (ver ../punch/SPEC.md). Se escribió sin referencias reales y no coincide con el nicho.
+
 # SPEC — Martillo aplastador (v2)
 
 Fuente: descripción literal del usuario (Nov 2026) + títulos de referencia ("Ball Crushing, Splitting & Multiplication").

@@ -4,8 +4,8 @@ Shorts de física "satisfying" 100% código, protagonizados por fichas brainrot.
 
 ```bash
 pip install -r requirements.txt          # + ffmpeg; Linux: apt-get install libegl1 espeak-ng
-python render.py --seed 8 --preview      # -> out/hammer_8.mp4 (+ 6 PNG de control)
-python -m tools.qa out/hammer_8.mp4      # hoja de 6 frames + LUFS / true peak
+python render.py --seed 2                # -> out/punch_2.mp4 (formato por defecto: punch)
+python -m tools.qa out/punch_2.mp4      # hoja de 6 frames + LUFS / true peak
 python -m tools.sheet out/chars.png      # hoja de personajes
 ```
 
@@ -24,3 +24,6 @@ python -m tools.sheet out/chars.png      # hoja de personajes
 Medición (4 cores, 30 fps): ~50 s de video en ~70 s de render. A 60 fps (`--fps 60`) ronda los 2.5 min.
 
 Siguiente: paso 2 (batalla + merge evolutivo como formatos propios), paso 3 (genoma completo + anti-repetición + metadatos), paso 4 (workflow).
+
+## Formato principal: PUNCH FILL (calcado de ref05)
+Ver `reference/formats/punch/SPEC.md` y el catálogo `reference/formats/README.md`. `formats/hammer.py` queda obsoleto.

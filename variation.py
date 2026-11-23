@@ -8,6 +8,25 @@ PALETTES = [
 ]
 
 
+def punch_genome(seed):
+    r = random.Random(seed)
+    return {
+        "seed": seed, "format": "punch", "lang": "en",
+        "chars": r.sample(["tralalero", "tungtung", "cappuccina"], 3),
+        "palette": {"bg": (0.015, 0.02, 0.05), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
+        "ball_r": r.choice([7.5, 8.0]), "packing": 0.88,
+        "gravity": r.uniform(700, 950),
+        "head_w": r.uniform(120, 135), "head_h": r.uniform(105, 118),
+        "start_angles": [r.uniform(-2.6, -2.2), r.uniform(-0.9, -0.5)],
+        "w0": r.uniform(2.0, 2.6), "w_ratio": r.uniform(0.7, 1.0),
+        "target_t": r.uniform(46, 51), "curve": r.uniform(1.7, 2.0),
+        "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
+        "root": r.choice([196.0, 220.0, 246.9, 261.6]),
+        "timbre": r.choice(["marimba", "glass", "bell", "pluck"]),
+        "bpm": 120, "round": r.randint(2, 9),
+    }
+
+
 def random_genome(seed):
     r = random.Random(seed)
     return {

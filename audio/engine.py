@@ -113,6 +113,7 @@ class AudioEngine:
                 key = (kind, int(e * 4))
                 if key not in imp_cache or rng.random() < 0.3:
                     imp_cache[key] = (synth.squish(rng, e) if kind == "squish" else
+                                      synth.punch(rng, e) if kind == "punch" else
                                       synth.clack(rng, e) if kind == "clack" else synth.impact(kind, e, rng))
                 gl, gr = self._pan(pan)
                 g = (0.12 + 0.35 * e) / (1 + 0.5 * k)
@@ -188,7 +189,7 @@ class AudioEngine:
         y /= max(1e-6, np.max(np.abs(y))) / 0.89
         return np.tanh(y * 1.1) / np.tanh(1.1)
 
-    def save(self, path, target_lufs=-14.0, ceiling_db=-3.2):
+    def save(self, path, target_lufs=-14.0, ceiling_db=-4.0):
         y = self.render()
         # normalizado propio: medir LUFS -> ganancia -> limitador lookahead (2 pasadas)
         for _ in range(2):

@@ -1,3 +1,4 @@
 from formats.hammer import Hammer
+from formats.punch import Punch
 
-FORMATS = {"hammer": Hammer}
+FORMATS = {"hammer": Hammer, "punch": Punch}
