@@ -74,3 +74,16 @@ Distancia contra los últimos 50 publicados en `history.json`: si un genoma qued
 4. Workflow de render y upload.
 5. Research con la API + growth loop.
 6. El resto de los formatos.
+
+## REGLA: el movimiento se MIDE, no se supone (Nov 2026)
+- Las grabaciones originales están en `reference/videos/raw/` (11 videos). Mirar hojas de frames no alcanza:
+  la lógica del movimiento (quién se mueve, a qué velocidad, con qué ritmo, si hay gravedad) se saca con números.
+- `python -m tools.motion.measure VIDEO --tiktok -o x.json` mide ritmo de golpes, tijera entre brazos,
+  velocidad, tamaño de bola y gravedad efectiva, y excluye los tramos grabados a 2x.
+- Cada formato tiene `reference/formats/<formato>/target.json` (métricas de la referencia) y `MEDIDAS.md` (las leyes del movimiento).
+- **Un formato no está terminado hasta que `python -m tools.motion.compare target.json render.json` da PASA.**
+  Si una métrica falla, se corrige el código de movimiento. No se cambia la tolerancia y no se "interpreta".
+- PUNCH: leer `reference/formats/punch/MEDIDAS.md` antes de tocar `formats/punch.py`
+  (sin gravedad, brazos en tijera, golpe que apunta a la bola, ritmo de 0.7 s a 1.3 s, ×2 de lo atrapado, bola que se achica).
+- Formatos nuevos: primero medir la referencia y escribir su `target.json`; si `measure.py` no cubre la mecánica
+  (aspas, aro con hueco, merge), primero se le agregan las métricas que falten y después se programa.
