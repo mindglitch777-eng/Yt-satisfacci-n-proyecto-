@@ -237,6 +237,7 @@ class Sim:
                             "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart",
                             out_path], check=True)
             tp = _true_peak(out_path)
+            print(f"[audio] techo {ceiling:.2f} dB → true peak tras AAC {tp}", file=__import__("sys").stderr)
             if tp is None or tp <= -1.0:
                 break
             ceiling -= (tp + 1.2) * 0.55

@@ -235,14 +235,18 @@ class Arena(Sim):
             self.draw_machine(c)
             if fade < 1:
                 c.restore()
-        for x, y, age in self.flashes:
+        for f in self.flashes:
+            x, y, age = f[:3]
+            fc = f[3] if len(f) > 3 else (1, 1, 1)
             k = age / 0.35
-            c.drawCircle(x, y, 30 + 120 * k, skia.Paint(Color4f=skia.Color4f(1, 1, 1, 0.85 * (1 - k)), AntiAlias=True,
+            c.drawCircle(x, y, 30 + 120 * k, skia.Paint(Color4f=skia.Color4f(*fc, 0.85 * (1 - k)), AntiAlias=True,
                                                        MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, 16)))
         self.particles.draw(c)
-        for x, y, s, age in self.pops:
+        for p in self.pops:
+            x, y, s, age = p[:4]
+            col = p[4] if len(p) > 4 else (1, 1, 1)
             pop = 1 + 0.35 * max(0, 0.15 - age) / 0.15
-            draw_text(c, s, x, y + 20, 62 * pop, (1, 1, 1), stroke=10, alpha=min(1, (1.0 - age) * 3), max_w=360)
+            draw_text(c, s, x, y + 20, 62 * pop, col, stroke=10, alpha=min(1, (1.0 - age) * 3), max_w=360)
 
     def draw_cracks(self, c, k):
         if not hasattr(self, "_crack_lines"):
@@ -272,7 +276,7 @@ class Arena(Sim):
         P = self.positions()
         col = np.array(self.col)
         r = self.rad[0]
-        if r >= 16:
+        if r >= 16 and self.g.get("faces", True):
             for (x, y), ci in zip(P, col):
                 ch = self.chars[ci] if ci < len(self.chars) else None
                 if ch is not None:
