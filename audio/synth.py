@@ -120,15 +120,15 @@ def boom(rng):
     x = t_axis(2.2)
     f = 30 + 90 * np.exp(-x * 3)
     sub = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-x * 1.6)
-    n = lowpass(noise(len(x), rng), 0.08) * np.exp(-x * 2.5) * 3
+    n = band(noise(len(x), rng), 30, 600) * np.exp(-x * 2.5) * 1.2
     return (sub + n).astype(np.float32)
 
 
 def riser(dur, rng):
     x = t_axis(dur)
     n = noise(len(x), rng)
-    hp = n - lowpass(n, 0.05)
-    return (hp * (x / dur) ** 2 * 0.5).astype(np.float32)
+    hp = band(n, 150, 1800)
+    return (hp * (x / dur) ** 2 * 0.6).astype(np.float32)
 
 
 def squish(rng, energy=1.0):
@@ -137,23 +137,23 @@ def squish(rng, energy=1.0):
     f = 220 * np.exp(-x * 14) + 60
     body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-x * 18)
     n = noise(len(x), rng)
-    wet = (lowpass(n, 0.12) * 3) * np.exp(-x * 26) * (0.5 + 0.5 * np.sin(2 * np.pi * np.cumsum(900 * np.exp(-x * 20) + 80) / SR))
+    wet = (band(n, 120, 1400) * 1.5) * np.exp(-x * 26) * (0.5 + 0.5 * np.sin(2 * np.pi * np.cumsum(900 * np.exp(-x * 20) + 80) / SR))
     return ((body * 0.9 + wet * 0.7) * (0.6 + 0.4 * energy)).astype(np.float32)
 
 
 def pop(rng, pitch=1.0):
     """pop de multiplicación: burbuja brillante que sube."""
     x = t_axis(0.11)
-    f = (600 + 2600 * (1 - np.exp(-x * 60))) * pitch
+    f = (260 + 760 * (1 - np.exp(-x * 60))) * pitch
     return (np.sin(2 * np.pi * np.cumsum(f) / SR) * env_ad(len(x), 0.001, 38)).astype(np.float32)
 
 
 def clack(rng, energy=1.0):
     """canica contra canica: dos parciales altos inarmónicos, cortísimo."""
     x = t_axis(0.05)
-    f1 = rng.uniform(2600, 3800)
-    w = np.sin(2 * np.pi * f1 * x) + 0.6 * np.sin(2 * np.pi * f1 * 2.31 * x)
-    return (w * np.exp(-x * 120) * (0.4 + 0.6 * energy) * 0.6).astype(np.float32)
+    f1 = rng.uniform(650, 1050)          # "toc" de canica grave (ref05 suena en 550-1000 Hz)
+    w = np.sin(2 * np.pi * f1 * x) + 0.4 * np.sin(2 * np.pi * f1 * 2.4 * x) * np.exp(-x * 160)
+    return (w * np.exp(-x * 70) * (0.4 + 0.6 * energy) * 0.7).astype(np.float32)
 
 
 def punch(rng, energy=1.0):
@@ -162,5 +162,18 @@ def punch(rng, energy=1.0):
     f = 55 + 140 * np.exp(-x * 35)
     body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-x * 11)
     n = noise(len(x), rng)
-    leather = lowpass(n, 0.25) * np.exp(-x * 70) * 2.2
+    leather = band(n, 150, 2500) * np.exp(-x * 70) * 1.6
     return ((body + leather) * (0.55 + 0.45 * energy)).astype(np.float32)
+
+
+def band(x, lo, hi):
+    """filtro de banda real por FFT (pendiente suave en los bordes, sin ringing audible)."""
+    n = len(x)
+    nfft = 1 << (n - 1).bit_length()
+    X = np.fft.rfft(x, nfft)
+    f = np.fft.rfftfreq(nfft, 1 / SR)
+    m = np.ones_like(f)
+    if lo > 0:
+        m *= 1 / (1 + (lo / np.maximum(f, 1e-3)) ** 8)
+    m *= 1 / (1 + (f / hi) ** 8)
+    return np.fft.irfft(X * m, nfft)[:n].astype(np.float32)

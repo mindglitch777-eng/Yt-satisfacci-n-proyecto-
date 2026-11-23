@@ -34,6 +34,8 @@ def _espeak(text, voice, pitch, speed):
     shifted = np.interp(np.arange(n) * 1.06, np.arange(n), x, right=0).astype(np.float32)
     y = 0.7 * x + 0.45 * shifted
     y = np.tanh(y * 1.8) / np.tanh(1.8)
+    from audio.synth import band
+    y = band(y, 90, 3200)   # voz más cálida, sin siseo
     fade = int(0.01 * SR)
     y[:fade] *= np.linspace(0, 1, fade)
     y[-fade:] *= np.linspace(1, 0, fade)

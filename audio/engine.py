@@ -25,6 +25,7 @@ class AudioEngine:
         self.sigs = []      # (t, kind, pan, gain)
         self.fx = []        # (t, name, gain)
         self.voices = []    # (t, key, kind, pan, gain)
+        self.rumbles = []   # (t, level)
         self.tension = []   # (t, 0..1) curva para pitch/densidad/bed
         self.climax = None
         self._tones = {}
@@ -36,6 +37,10 @@ class AudioEngine:
 
     def signature(self, t, kind, pan=0.0, gain=0.6):
         self.sigs.append((t, kind, pan, gain))
+
+    def rumble(self, t, level):
+        """retumbe continuo de la masa empujada (nivel 0..1, se interpola)."""
+        self.rumbles.append((t, float(level)))
 
     def voice(self, t, key, kind="short", pan=0.0, gain=1.0):
         self.voices.append((t, key, kind, pan, gain))
@@ -121,7 +126,7 @@ class AudioEngine:
                 # tono: velocidad -> grado de la escala, tensión -> transpone hacia arriba
                 if kind == "clack":
                     continue
-                step = int(e * 6) + int(ten * 8) + 5
+                step = int(e * 4) + int(ten * 5)      # registro medio-grave, como ref05
                 if step == last_step:
                     step += 1 if rng.random() < 0.5 else -1
                 last_step = step
@@ -137,6 +142,20 @@ class AudioEngine:
         for t, kind, pan, gain in self.sigs:
             gl, gr = self._pan(pan)
             self._add(mus, int(t * SR), synth.signature(kind, rng), 0.22 * gain * gl, 0.22 * gain * gr)
+
+        # --- retumbe de la masa (ruido grave filtrado, sigue al movimiento) ---
+        if self.rumbles:
+            ts, ls = zip(*sorted(self.rumbles))
+            tt = np.arange(n, dtype=np.float32) / SR
+            env = np.interp(tt, ts, ls).astype(np.float32)
+            nz = rng.standard_normal(n).astype(np.float32)
+            low = synth.band(nz, 70, 650)                 # retumbe real: 70-650 Hz
+            low /= (np.std(low) + 1e-9)
+            grain = (rng.random(n) < 0.0009).astype(np.float32)
+            grain = synth.lowpass(grain, 1 / 30.0) * 30
+            r = (0.6 * low + 0.4 * grain * low) * env * 0.06
+            dry[:, 0] += r
+            dry[:, 1] += np.roll(r, 200)
 
         # --- voces brainrot ---
         from audio.voices import voice as get_voice
@@ -161,7 +180,7 @@ class AudioEngine:
                 w = synth.pop(rng, gain)
                 self._add(dry, int(t * SR), w, 0.22, 0.22)
             elif name == "chord":   # acorde de victoria, arpegiado
-                for j, step in enumerate((14, 16, 17, 19, 21)):
+                for j, step in enumerate((5, 7, 8, 10, 12)):
                     self._add(mus, int((t + j * 0.07) * SR), self._note(step), 0.16 * gain, 0.16 * gain)
 
         wet = self._reverb(mus + 0.5 * rain)
@@ -192,7 +211,7 @@ class AudioEngine:
     def save(self, path, target_lufs=-14.0, ceiling_db=-4.0):
         y = self.render()
         # normalizado propio: medir LUFS -> ganancia -> limitador lookahead (2 pasadas)
-        for _ in range(2):
+        for _ in range(3):
             self._write(path, y)
             lu = measure_lufs(path)
             y = limit(y * 10 ** ((target_lufs - lu) / 20), 10 ** (ceiling_db / 20))
