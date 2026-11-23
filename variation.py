@@ -17,7 +17,7 @@ def punch_genome(seed):
         "palette": {"bg": (0.015, 0.02, 0.05), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
         "capacity": 2600,
         "head_w": r.uniform(112, 124), "head_h": r.uniform(96, 106),
-        "iv_early": 0.7, "iv_late": 1.3, "ritard_t": 36.0,
+        "iv_early": 0.8, "iv_late": 1.3, "ritard_t": 18.0,
         "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
         "root": r.choice([130.8, 146.8, 164.8]),
         "timbre": r.choice(["marimba", "pluck"]),

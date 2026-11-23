@@ -42,15 +42,15 @@ def wrap(a):
 
 
 def ease_open(u):
-    """reubicación: arranca fuerte y frena en seco al final."""
+    """péndulo: después del choque rebotan rápido hacia afuera y se frenan suave arriba."""
     u = min(1.0, max(0.0, u))
-    return 1 - (1 - u) ** 3
+    return math.sin(math.pi * u / 2)
 
 
 def ease_close(u):
-    """cierre: acelera hacia el golpe (termina a máxima velocidad: el aplauso)."""
+    """cierre: sale suave desde la apertura y va ganando velocidad hasta que los martillos chocan."""
     u = min(1.0, max(0.0, u))
-    return u ** 1.7
+    return 1 - math.cos(math.pi * u / 2)
 
 
 class Punch(Sim):
@@ -60,7 +60,7 @@ class Punch(Sim):
         g = self.g
         self.L = TXT[g.get("lang", "en")]
         self.cx, self.cy, self.R = W / 2, 905, 455
-        self.space.gravity = (0, g.get("gravity", 80))   # ley 1: despreciable (terminal ≈ 12 px/s con este damping)
+        self.space.gravity = (0, g.get("gravity", 160))   # ley 1: muy leve (terminal ≈ 57 px/s con este damping)
         self.space.damping = g.get("damping", 0.06)  # queda 6% de la velocidad tras 1 s → frenan en ~0.5 s
         self.space.iterations = 8
         self.space.use_spatial_hash(14, 12000)
@@ -100,25 +100,43 @@ class Punch(Sim):
         self.r_exp = g.get("r_exp", 0.30)
         self.r_min = g.get("r_min", 5.2)
         # ciclo
-        self.target = -math.pi / 2 + self.rng.uniform(-0.4, 0.4)
-        self.ang = [self.target - self.gap / 2 - 0.9, self.target + self.gap / 2 + 0.9]
+        # índice 0 = martillo DERECHO (ángulo en -90°..90°), índice 1 = IZQUIERDO (90°..270°), en espejo.
+        # La primera bola está arriba → el primer golpe es arriba.
+        self.side = -1                                   # -1 = chocan arriba, +1 = chocan abajo
+        self.target = -math.pi / 2
+        a0 = math.radians(55)
+        self.ang = [-math.pi / 2 + self.gap / 2 + a0, 1.5 * math.pi - self.gap / 2 - a0]
         self.prev_ang = list(self.ang)
         for b, a in zip(self.arm_bodies, self.ang):
             b.angle = a
         self.cyc_t0, self.phase = 0.0, "close"
         self.close_from = list(self.ang)
-        self.cyc = dict(close_T=0.32, hold=0.1)
+        self.close_to = self._closed(-1, 0.0)
+        self.cyc = dict(close_T=0.3, hold=0.1)
+        self.mult_seq = g.get("mult_seq", [2, 3, 4, 5])   # ×2, ×3, ×4, ×5 y después se queda en el último
         self.pops, self.flashes = [], []
         self.last_voice = -9
         self.round = g.get("round", 2)
         self.winner = 0
         self.claps = 0
+        self.mult_i = 0
         # la primera bola flota arriba (ref: y ≈ -0.53R), ya en movimiento suave
         self._add(self.cx + 0.08 * self.R, self.cy - 0.53 * self.R, 40, 0, 0, self.r0)
 
     # ---------- bolas ----------
     def r_for(self, n):
         return max(self.r_min, self.r0 * max(1, n) ** -self.r_exp)
+
+    def _resize_all(self):
+        """todas las bolas del MISMO tamaño: cuando hay más, se achican todas juntas."""
+        r = self.r_for(len(self.bodies))
+        if self.rad and abs(self.rad[0] - r) < 0.05:
+            return r
+        for b in self.bodies:
+            for sh in b.shapes:
+                sh.unsafe_set_radius(r)
+        self.rad = [r] * len(self.bodies)
+        return r
 
     def _add(self, x, y, vx, vy, col, r):
         b = pymunk.Body(1, pymunk.moment_for_circle(1, 0, r))
@@ -170,54 +188,56 @@ class Punch(Sim):
                 best, best_s = i, s
         return -np.pi + (best + 0.5) * TAU / 36
 
-    def _new_cycle(self):
-        """después del golpe: se abren alrededor del próximo objetivo (hasta 180°) y esperan; después aplauden."""
-        I = self.interval() - 2.5 * self.dt     # los cambios de fase caen en bordes de frame (~2.5 frames por ciclo)
-        late = min(1.0, self.t / 36.0)
-        c0 = (self.ang[0] + wrap(self.ang[1] - self.ang[0]) / 2)
-        # el golpe RECORRE el círculo: salto Δ (chico con golpes rápidos, grande con golpes lentos),
-        # casi siempre en el mismo sentido (gira alrededor), a veces cambia
-        if self.rng.random() < 0.25:
-            self.roam = -getattr(self, "roam", 1)
-        self.roam = getattr(self, "roam", 1)
-        jump = math.radians((28 + 32 * late) * self.rng.uniform(0.75, 1.2))
-        if len(self.bodies) <= 40:
-            self.target = c0 + self.roam * jump          # lo atrapado queda dentro del barrido y se lleva al punto nuevo
-        else:
-            pick = self._pick_target()
-            off_p = wrap(pick - c0)
-            # entre la masa, preferir un punto a ~Δ en el sentido de giro
-            off_p = max(-math.radians(60), min(math.radians(60), off_p))
-            self.target = c0 + (off_p if abs(off_p) > math.radians(30) and self.rng.random() < 0.5 else self.roam * jump)
-        half = math.radians(self.rng.uniform(38, 54) + 30 * late)       # apertura total ~90°→~170°
-        hold = 0.09
-        close_T = 0.2 + 0.12 * late
-        open_T = (I - hold - close_T) * self.rng.uniform(0.5, 0.62)
-        self.cyc = dict(open_T=open_T, close_T=close_T, hold=hold,
-                        wait=max(0.0, I - hold - close_T - open_T))
-        self.open_from = list(self.ang)
-        # tijera (ley 2): se abren en sentidos OPUESTOS alrededor del golpe anterior, lo bastante
-        # para que el próximo objetivo quede entre los dos; el centro se corre solo un poco (30%).
-        c = (self.ang[0] + wrap(self.ang[1] - self.ang[0]) / 2)
-        off = wrap(self.target - c)
-        # se abren a los DOS lados del próximo golpe (el viejo queda adentro del barrido) y después
-        # se cierran simétricos sobre él: tijera pura y el golpe avanza alrededor del círculo
-        # se ABREN simétricos alrededor del golpe anterior (mismo recorrido, sentidos opuestos) y se
-        # CIERRAN sobre el punto nuevo: el golpe avanza alrededor del círculo y siempre es tijera
-        h = max(half, abs(off) * 1.9 + math.radians(12))
-        self.open_to = [c - h, c + h]
-        self.target = c + off
-        self.phase, self.cyc_t0 = "open", self.t
+    def _want(self, t):
+        """curva de llenado medida en ref05 (~3% a los 10 s); lleno hacia el seg ~48."""
+        g = self.g
+        return g["capacity"] * min(1.0, max(0.0, t) / g.get("target_t", 48.0)) ** g.get("curve", 2.1)
 
-    def _do_kick(self):
-        bodies, tgt = self.kick
-        self.kick = None
-        n = len(self.bodies)
-        base = 1000 if n < 60 else (650 if n < 400 else 380)   # pocas: cruzan el círculo; muchas: abanico
-        for b in bodies:
-            a = tgt + math.pi + self.rng.uniform(-0.9, 0.9)       # hacia adentro y al otro lado
-            sp = base * self.rng.uniform(0.55, 1.0)
-            b.velocity = (b.velocity.x + sp * math.cos(a), b.velocity.y + sp * math.sin(a))
+    def _closed(self, side, o):
+        """ángulos (derecho, izquierdo) con los guantes juntos arriba (side=-1) o abajo (+1), corridos o rad."""
+        g2 = self.gap / 2
+        return [side * (math.pi / 2 - g2) + o, math.pi - side * (math.pi / 2 - g2) + o]
+
+    def _opened(self, side, amp, o):
+        """abiertos: cada martillo a 'amp' de su punto de choque, el derecho a la derecha y el izquierdo a la izquierda."""
+        return [side * (math.pi / 2 - amp) + o, math.pi - side * (math.pi / 2 - amp) + o]
+
+    def _new_cycle(self):
+        """martillo DERECHO e IZQUIERDO: se abren hacia sus costados y vuelven uno contra el otro.
+        Chocan abajo o arriba (donde haya más bolas); lo que quedó en el espacio que barren se multiplica."""
+        I = self.interval() - 2.5 * self.dt     # los cambios de fase caen en bordes de frame
+        late = min(1.0, self.t / 36.0)
+        P = self.positions()
+        if len(P):
+            below = float(np.mean(P[:, 1] > self.cy))
+            more = 1 if below >= 0.5 else -1
+            n = len(P)
+            if n <= 40:
+                side = more                                   # pocas: van a buscarlas
+            else:
+                # Pacer: atrasado → choca donde hay MÁS bolas; adelantado → donde hay MENOS (la regla ×N no cambia)
+                ahead = n > self._want(self.t + I)
+                side = -more if ahead else more
+                if self.rng.random() < 0.15:
+                    side = -side
+        else:
+            side = self.side
+        # amplitud de cada martillo (recorrido): golpes rápidos = cortos, lentos = hasta los costados
+        amp = math.radians((70 + 20 * late) * self.rng.uniform(0.93, 1.07))   # se abren hacia los costados
+        o_close = math.radians(self.rng.uniform(-10, 10))      # el choque no siempre cae en el mismo punto
+        o_open = math.radians(self.rng.uniform(-8, 8))
+        self.lag = 0.0                  # el izquierdo arranca apenas después (manos reales)
+        # recorrido continuo y parejo (sin quedarse quietos esperando): se abren y vuelven a chocar
+        hold = 0.08
+        open_T = (I - hold) * 0.45
+        close_T = (I - hold) * 0.55
+        self.cyc = dict(open_T=open_T, close_T=close_T, hold=hold, wait=0.0)
+        self.open_from = list(self.ang)
+        self.open_to = self._opened(side, amp, o_open)
+        self.close_to = self._closed(side, o_close)
+        self.side = side
+        self.target = side * math.pi / 2 + o_close
+        self.phase, self.cyc_t0 = "open", self.t
 
     # ---------- golpe (ley 5) ----------
     def _clap(self):
@@ -244,8 +264,11 @@ class Punch(Sim):
             if len(caught) > cap:
                 caught = caught[np.argsort(off[caught])][:cap]
             k = len(caught)
+            mult = self.mult_seq[min(self.mult_i, len(self.mult_seq) - 1)] if k else 1
             room = self.g["capacity"] - len(P)
-            n_new = max(0, min(k, room))
+            n_new = max(0, min(k * (mult - 1), room))
+            if k:
+                self.mult_i += 1
             if k:
                 self.cur = (self.cur + 1) % len(self.chars)
                 for i in caught:
@@ -271,11 +294,12 @@ class Punch(Sim):
                 # al abrirse los brazos, lo del golpe sale DISPARADO cruzando el círculo (los brazos lo persiguen)
 
                 # el "+N" va en la cuña cerca del pivote (< 0.45R): lejos de los guantes, legible
+                self._resize_all()                      # todas del mismo tamaño
                 lx = self.cx + 0.3 * self.R * math.cos(self.target)
                 ly = self.cy + 0.3 * self.R * math.sin(self.target)
-                lab = "×2" if n_new == k and k < 40 else f"+{n_new}"
+                lab = f"×{mult}" if n_new == k * (mult - 1) else f"+{n_new}"
                 self.pops.append([lx, ly, lab, 0.0])
-                self.particles.burst(hx, hy, (1, 1, 1), n=14, speed=600, size=3, life=0.35)
+                self.particles.burst(hx, hy, self.chars[self.cur].color, n=14, speed=600, size=3, life=0.35)
         e = min(1.0, 0.4 + k / 120)
         self.audio.hit(self.t, e, "punch", pan, ten)
         if k:
@@ -305,16 +329,18 @@ class Punch(Sim):
         if self.phase == "open":
             if u_t >= c["open_T"]:
                 self.phase, self.cyc_t0 = "wait", self.t
+                self.ang = list(self.open_to)
                 return list(self.open_to)
-            e = ease_open(u_t / c["open_T"])
-            return [a + (b - a) * e for a, b in zip(self.open_from, self.open_to)]
+            lag = getattr(self, "lag", 0.0)
+            es = [ease_open(u_t / c["open_T"]), ease_open((u_t - lag) / max(1e-3, c["open_T"] - lag))]
+            return [a + (b - a) * e for a, b, e in zip(self.open_from, self.open_to, es)]
         if self.phase == "wait":
             if u_t >= c["wait"]:
                 self.phase, self.cyc_t0 = "close", self.t
                 self.close_from = list(self.ang)
             return list(self.ang)
         if self.phase == "close":
-            to = [self.target - self.gap / 2, self.target + self.gap / 2]
+            to = self.close_to
             if u_t >= c["close_T"]:
                 self.phase, self.cyc_t0 = "hold", self.t
                 self._clap()
