@@ -158,16 +158,38 @@ class Punch(Sim):
         # una porción de la masa: el sector (de ~40°) más poblado entre unos candidatos al azar
         h, _ = np.histogram(phi, bins=36, range=(-np.pi, np.pi))
         hs = np.convolve(np.r_[h[-2:], h, h[:2]], np.ones(5), "valid")
-        cand = [int(np.argmax(hs))] + [self.rng.randrange(36) for _ in range(3)]
-        pick = max(cand, key=lambda i: hs[i] + self.rng.random() * hs.max() * 0.6)
-        return -np.pi + (pick + 0.5) * TAU / 36
+        # el golpe RECORRE el círculo: entre sectores con bolas, prefiere los lejos del golpe anterior (60-140°)
+        c = math.atan2(math.sin(self.ang[0]) + math.sin(self.ang[1]), math.cos(self.ang[0]) + math.cos(self.ang[1]))
+        best, best_s = 0, -1.0
+        for i in range(36):
+            a = -np.pi + (i + 0.5) * TAU / 36
+            dist = abs(math.degrees(wrap(a - c)))
+            far = 0.25 + min(1.0, dist / 70.0) * (1.0 if dist < 140 else 0.7)
+            s = (hs[i] / max(1, hs.max())) * far * (0.6 + 0.8 * self.rng.random())
+            if hs[i] > 0 and s > best_s:
+                best, best_s = i, s
+        return -np.pi + (best + 0.5) * TAU / 36
 
     def _new_cycle(self):
         """después del golpe: se abren alrededor del próximo objetivo (hasta 180°) y esperan; después aplauden."""
         I = self.interval() - 2.5 * self.dt     # los cambios de fase caen en bordes de frame (~2.5 frames por ciclo)
-        self.target = self._pick_target()
         late = min(1.0, self.t / 36.0)
-        half = math.radians(self.rng.uniform(48, 70) + 40 * late)       # apertura total ~120°→~220°
+        c0 = (self.ang[0] + wrap(self.ang[1] - self.ang[0]) / 2)
+        # el golpe RECORRE el círculo: salto Δ (chico con golpes rápidos, grande con golpes lentos),
+        # casi siempre en el mismo sentido (gira alrededor), a veces cambia
+        if self.rng.random() < 0.25:
+            self.roam = -getattr(self, "roam", 1)
+        self.roam = getattr(self, "roam", 1)
+        jump = math.radians((28 + 32 * late) * self.rng.uniform(0.75, 1.2))
+        if len(self.bodies) <= 40:
+            self.target = c0 + self.roam * jump          # lo atrapado queda dentro del barrido y se lleva al punto nuevo
+        else:
+            pick = self._pick_target()
+            off_p = wrap(pick - c0)
+            # entre la masa, preferir un punto a ~Δ en el sentido de giro
+            off_p = max(-math.radians(60), min(math.radians(60), off_p))
+            self.target = c0 + (off_p if abs(off_p) > math.radians(30) and self.rng.random() < 0.5 else self.roam * jump)
+        half = math.radians(self.rng.uniform(38, 54) + 30 * late)       # apertura total ~90°→~170°
         hold = 0.09
         close_T = 0.2 + 0.12 * late
         open_T = (I - hold - close_T) * self.rng.uniform(0.5, 0.62)
@@ -178,14 +200,24 @@ class Punch(Sim):
         # para que el próximo objetivo quede entre los dos; el centro se corre solo un poco (30%).
         c = (self.ang[0] + wrap(self.ang[1] - self.ang[0]) / 2)
         off = wrap(self.target - c)
-        center = c
-        half = max(half, abs(wrap(self.target - center)) + math.radians(28))
-        half = min(half, math.radians(172))
-        # desplazamientos relativos (sin saltos de 2π): el brazo 0 abre hacia atrás, el 1 hacia adelante
-        shift = 0.0
-        self.open_to = [self.ang[0] + shift - half + self.gap / 2, self.ang[1] + shift + half - self.gap / 2]
+        # se abren a los DOS lados del próximo golpe (el viejo queda adentro del barrido) y después
+        # se cierran simétricos sobre él: tijera pura y el golpe avanza alrededor del círculo
+        # se ABREN simétricos alrededor del golpe anterior (mismo recorrido, sentidos opuestos) y se
+        # CIERRAN sobre el punto nuevo: el golpe avanza alrededor del círculo y siempre es tijera
+        h = max(half, abs(off) * 1.9 + math.radians(12))
+        self.open_to = [c - h, c + h]
         self.target = c + off
         self.phase, self.cyc_t0 = "open", self.t
+
+    def _do_kick(self):
+        bodies, tgt = self.kick
+        self.kick = None
+        n = len(self.bodies)
+        base = 1000 if n < 60 else (650 if n < 400 else 380)   # pocas: cruzan el círculo; muchas: abanico
+        for b in bodies:
+            a = tgt + math.pi + self.rng.uniform(-0.9, 0.9)       # hacia adentro y al otro lado
+            sp = base * self.rng.uniform(0.55, 1.0)
+            b.velocity = (b.velocity.x + sp * math.cos(a), b.velocity.y + sp * math.sin(a))
 
     # ---------- golpe (ley 5) ----------
     def _clap(self):
@@ -236,6 +268,8 @@ class Punch(Sim):
                               -uy * v + ty * self.rng.uniform(-30, 30) * spd, self.cur, r_new)
                 for i in caught:
                     self.bodies[i].velocity = (self.bodies[i].velocity.x * 0.2, self.bodies[i].velocity.y * 0.2)
+                # al abrirse los brazos, lo del golpe sale DISPARADO cruzando el círculo (los brazos lo persiguen)
+
                 # el "+N" va en la cuña cerca del pivote (< 0.45R): lejos de los guantes, legible
                 lx = self.cx + 0.3 * self.R * math.cos(self.target)
                 ly = self.cy + 0.3 * self.R * math.sin(self.target)
@@ -286,7 +320,8 @@ class Punch(Sim):
                 self._clap()
                 return to
             e = ease_close(u_t / c["close_T"])
-            return [a + wrap(b - a) * e for a, b in zip(self.close_from, to)]
+            # desplazamiento exacto (sin "camino corto"): cada brazo vuelve por donde abrió → siempre tijera
+            return [a + (b - a) * e for a, b in zip(self.close_from, to)]
         # hold: guantes juntos
         if u_t >= c["hold"] and self.done_at is None:
             self._new_cycle()
