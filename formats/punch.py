@@ -99,6 +99,7 @@ class Punch(Sim):
         self.bodies, self.col, self.rad = [], [], []
         # ley 6: r/R medido ≈ 0.0765 con 1 bola. El medidor ve el núcleo saturado (≈0.72 r real).
         self.r0 = g.get("r_first", 0.106) * self.R
+        self.r_big = self.r0
         self.r_exp = g.get("r_exp", 0.30)
         self.r_min = g.get("r_min", 4.6)                  # chiquitas al final: entran MUCHÍSIMAS
         # lleno de verdad: el círculo tapado (empaquetado ~0.78) con bolas de radio mínimo
@@ -132,7 +133,8 @@ class Punch(Sim):
 
     # ---------- bolas ----------
     def r_for(self, n):
-        return max(self.r_min, self.r0 * max(1, n) ** -self.r_exp)
+        from formats.sizing import target_r
+        return target_r(n, self.R, self.r_big, self.r_min, self.g.get("crowd", 0.40))
 
     def _resize_all(self):
         """todas las bolas del MISMO tamaño: cuando hay más, se achican todas juntas."""
@@ -265,9 +267,9 @@ class Punch(Sim):
             margin = (np.array(self.rad) * 1.2 + self.hw * 0.2) / np.maximum(rad, 40)
             caught = np.nonzero((off < self.gap / 2 + margin) & (rad > 30))[0]
             # capacidad fija de la cuña: las que entran en el triángulo entre los guantes
-            r_new = self.r_for(len(P))
+            r_new = self.rad[0] if self.rad else self.r_big     # las nuevas nacen del tamaño actual
             wedge_area = 0.5 * (self.gap + 0.1) * (self.R ** 2 - 40 ** 2)
-            cap = max(1, int(wedge_area * self.g.get("wedge_fill", 0.015) / (math.pi * r_new ** 2)))
+            cap = max(1, int(wedge_area * self.g.get("wedge_fill", 0.02) / (math.pi * r_new ** 2)))
             if len(caught) > cap:
                 caught = caught[np.argsort(off[caught])][:cap]
             k = len(caught)
@@ -301,7 +303,7 @@ class Punch(Sim):
                 # al abrirse los brazos, lo del golpe sale DISPARADO cruzando el círculo (los brazos lo persiguen)
 
                 # el "+N" va en la cuña cerca del pivote (< 0.45R): lejos de los guantes, legible
-                self._resize_all()                      # todas del mismo tamaño
+                pass                                    # tamaño: se achican de a poco (formats/sizing.py)
                 lx = self.cx + 0.3 * self.R * math.cos(self.target)
                 ly = self.cy + 0.3 * self.R * math.sin(self.target)
                 lab = f"×{mult}" if n_new == k * (mult - 1) else f"+{n_new}"
@@ -450,6 +452,8 @@ class Punch(Sim):
         for b, a0, a1 in zip(self.arm_bodies, self.prev_ang, new_ang):
             b.angle = a0
             b.angular_velocity = (a1 - a0) / self.dt
+        from formats.sizing import smooth_sizes
+        smooth_sizes(self)
         super().step()
         for b, a1 in zip(self.arm_bodies, new_ang):
             b.angle = a1

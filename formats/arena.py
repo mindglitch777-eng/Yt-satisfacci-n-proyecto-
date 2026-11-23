@@ -50,7 +50,8 @@ class Arena(Sim):
         self.colors = [c.color for c in self.chars] + [c for c in WAVE_COLORS[3:]]
         self.cur = 0
         self.bodies, self.col, self.rad = [], [], []
-        self.r0 = g.get("r_first", 0.06) * self.R
+        self.r_big = g.get("r_big", 0.08) * self.R      # grandes (con cara) mientras entren cómodas
+        self.r0 = self.r_big
         self.r_exp = g.get("r_exp", 0.3)
         self.r_min = g.get("r_min", 4.6)
         self.capacity = int(g.get("packing", 0.78) * (self.R / self.r_min) ** 2)
@@ -62,7 +63,8 @@ class Arena(Sim):
 
     # ---------- bolas ----------
     def r_for(self, n):
-        return max(self.r_min, self.r0 * max(1, n) ** -self.r_exp)
+        from formats.sizing import target_r
+        return target_r(n, self.R, self.r_big, self.r_min, self.g.get("crowd", 0.40))
 
     def add_ball(self, x, y, vx, vy, col):
         r = self.rad[0] if self.rad else self.r_for(1)
@@ -115,6 +117,8 @@ class Arena(Sim):
     def step(self):
         if self.broken_at is None and self.done_at is None:
             self.machine_step()
+        from formats.sizing import smooth_sizes
+        smooth_sizes(self)
         super().step()
         self.contain()
 
@@ -272,7 +276,7 @@ class Arena(Sim):
             for (x, y), ci in zip(P, col):
                 ch = self.chars[ci] if ci < len(self.chars) else None
                 if ch is not None:
-                    img, half = ch.sprite(r)
+                    img, half = ch.sprite(round(r * 2) / 2)
                     c.drawImage(img, float(x) - half, float(y) - half)
                 else:
                     self._ball_pts(c, [skia.Point(float(x), float(y))], self.colors[ci], r)

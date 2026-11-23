@@ -13,6 +13,17 @@ from audio.engine import AudioEngine
 CHIP, WALL, MACHINE = 1, 2, 3
 
 
+def _true_peak(path):
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", path, "-af", "ebur128=peak=true", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    s = r.stderr[r.stderr.rfind("Summary:"):]
+    i = s.find("Peak:")
+    try:
+        return float(s[i + 5:].split()[0]) if i >= 0 else None
+    except ValueError:
+        return None
+
+
 class Chip:
     __slots__ = ("body", "shape", "char", "team", "r", "cool", "born", "flash")
 
@@ -217,12 +228,21 @@ class Sim:
         enc.wait()
         render_s = time.time() - t0
         self.audio.dur = self.t
-        wav = self.audio.save(out_path + ".wav")
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", silent, "-i", wav, 
-                        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart",
-                        out_path], check=True)
+        # el AAC puede inflar los golpes graves varios dB: se mide YA codificado y, si se pasa de -1 dBTP,
+        # se vuelve a masterizar con el techo bajado justo lo necesario (no se baja el volumen de todo)
+        ceiling = -2.5
+        for _ in range(4):
+            wav = self.audio.save(out_path + ".wav", ceiling_db=ceiling)
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", silent, "-i", wav,
+                            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart",
+                            out_path], check=True)
+            tp = _true_peak(out_path)
+            if tp is None or tp <= -1.0:
+                break
+            ceiling -= (tp + 1.2) * 0.55
         os.remove(silent)
-        os.remove(wav)
+        if not os.environ.get("KEEP_WAV"):
+            os.remove(wav)
         return {"seconds": round(self.t, 2), "frames": n, "render_s": round(render_s, 1),
                 "climax_t": self.done_at, "chips": len(self.chips)}
 

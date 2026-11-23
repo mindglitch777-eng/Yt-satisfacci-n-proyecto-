@@ -201,6 +201,13 @@ class AudioEngine:
             g[a - fade:a] = np.linspace(1, 0, fade)
             mix *= g[:, None]
 
+        # fundido de salida al final del video: un corte seco en pleno estallido satura al codificar
+        end = int(self.dur * SR)
+        fo = int(0.5 * SR)
+        if 0 < end <= len(mix):
+            a = max(0, end - fo)
+            mix[a:end] *= np.linspace(1, 0, end - a, dtype=np.float32)[:, None]
+            mix[end:] = 0
         return self._master(mix)
 
     def _master(self, x):
@@ -214,7 +221,7 @@ class AudioEngine:
         y /= max(1e-6, np.max(np.abs(y))) / 0.89
         return np.tanh(y * 1.1) / np.tanh(1.1)
 
-    def save(self, path, target_lufs=-14.0, ceiling_db=-4.0):
+    def save(self, path, target_lufs=-14.0, ceiling_db=-2.5):
         y = self.render()
         # normalizado propio: medir LUFS -> ganancia -> limitador lookahead (2 pasadas)
         for _ in range(3):
@@ -237,7 +244,13 @@ def limit(y, ceil, look=0.004, release=0.08):
     """limitador brickwall con lookahead: la ganancia baja ANTES del pico, nunca recorta."""
     from numpy.lib.stride_tricks import sliding_window_view
     w = int(SR * look)
-    a = np.max(np.abs(y), axis=1)
+    # pico REAL (entre muestras): sobremuestreo ×4. Es lo que el AAC después convierte en saturación.
+    try:
+        from scipy.signal import resample_poly
+        up = np.abs(resample_poly(y, 4, 1, axis=0))
+        a = up[: len(y) * 4].reshape(len(y), 4, 2).max(axis=(1, 2))
+    except ImportError:
+        a = np.max(np.abs(y), axis=1)
     need = np.minimum(1.0, ceil / np.maximum(a, 1e-9)).astype(np.float32)
     pad = np.concatenate([need, np.ones(w - 1, np.float32)])
     g = sliding_window_view(pad, w).min(axis=1)            # mira hacia adelante

@@ -178,12 +178,8 @@ class Press(Arena):
         self.pops.append([self.cx, self.cy - 0.06 * self.R, f"×{self.mult}" if k < 30 else f"+{n_new}", 0.0])
 
     def resize_all_for(self, n):
-        r = self.r_for(n)
-        for b in self.bodies:
-            for sh in b.shapes:
-                sh.unsafe_set_radius(r)
-        self.rad = [r] * len(self.bodies)
-        self._r_spawn = r
+        # el tamaño se achica solo y de a poco (formats/sizing.py); las nuevas nacen del tamaño actual
+        self._r_spawn = self.rad[0] if self.rad else self.r_big
 
     def _spawn_blobs(self, n):
         """4 masas (arriba/abajo/izq/der) que salen disparadas por los huecos de la X."""

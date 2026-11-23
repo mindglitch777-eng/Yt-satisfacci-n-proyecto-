@@ -158,11 +158,7 @@ class Slam(Arena):
             return
         n_new = min(k * self.mult, self.capacity + 40 - len(self.bodies))
         self.cur = (self.cur + 1) % len(self.colors)
-        r = self.r_for(len(self.bodies) + n_new)
-        for b in self.bodies:
-            for sh in b.shapes:
-                sh.unsafe_set_radius(r)
-        self.rad = [r] * len(self.bodies)
+        r = self.rad[0] if self.rad else self.r_big      # se achican de a poco (formats/sizing.py)
         # chorro: sale por la rendija (entre martillo y yunque) hacia el centro y para arriba
         ox, oy = self.cx + self.r_in * 0.92 * math.cos(a), self.cy + self.r_in * 0.92 * math.sin(a)
         jx, jy = self.cx - ox, (self.cy - 0.35 * self.R) - oy
