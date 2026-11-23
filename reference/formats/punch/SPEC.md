@@ -1,3 +1,6 @@
+> **Manda `MEDIDAS.md` + `target.json`.** El movimiento de `formats/punch.py` se valida con
+> `python -m tools.motion.measure` + `python -m tools.motion.compare` (tiene que dar PASA). Lo de abajo es el análisis visual previo.
+
 # SPEC — PUNCH FILL (fuente: ref05 = SatisfiedBounce "CAN 1 BALL REFILL IT IN 60 SECONDS?", 1.2M y 2.8M vistas)
 
 Analizado CUADRO A CUADRO a 10 fps alrededor de dos golpes: `reference/sheets/ref05_clap_26s.png` y `ref05_clap_28s.png`.

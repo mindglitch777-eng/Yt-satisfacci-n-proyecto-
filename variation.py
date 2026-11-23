@@ -9,16 +9,15 @@ PALETTES = [
 
 
 def punch_genome(seed):
+    """genoma del PUNCH: el movimiento sale de reference/formats/punch/MEDIDAS.md (no se sortea)."""
     r = random.Random(seed)
     return {
         "seed": seed, "format": "punch", "lang": "en",
         "chars": r.sample(["tralalero", "tungtung", "cappuccina"], 3),
         "palette": {"bg": (0.015, 0.02, 0.05), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
-        "ball_r": r.choice([7.5, 8.0]), "packing": 0.86,
-        "gravity": r.uniform(700, 950),
-        "head_w": r.uniform(115, 128), "head_h": r.uniform(100, 112),
-        "start_angle": r.uniform(0.6, 2.4), "cycle": r.uniform(2.1, 2.5), "drift": r.uniform(0.2, 0.5),
-        "target_t": r.uniform(46, 51), "curve": r.uniform(1.7, 2.0),
+        "capacity": 2600,
+        "head_w": r.uniform(112, 124), "head_h": r.uniform(96, 106),
+        "iv_early": 0.7, "iv_late": 1.3, "ritard_t": 36.0,
         "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
         "root": r.choice([130.8, 146.8, 164.8]),
         "timbre": r.choice(["marimba", "pluck"]),
