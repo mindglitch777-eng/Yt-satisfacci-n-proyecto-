@@ -29,10 +29,10 @@ TAU = 2 * math.pi
 
 TXT = {
     "en": {"t1": "CAN 1 BALL REFILL IT", "t2": "IN 60 SECONDS?", "balls": "BALLS", "full": "FULL!",
-           "almost": "IT GETS THIS FULL...", "taking": "IS TAKING OVER", "wins": "WINS!",
+           "almost": "IT GETS THIS FULL...", "taking": "IS TAKING OVER", "wins": "WINS!", "broke": "IT BROKE!",
            "cta1": "WHICH BRAINROT WINS NEXT?", "cta2": "SUBSCRIBE FOR ROUND {n}"},
     "es": {"t1": "¿PUEDE 1 BOLA LLENARLO", "t2": "EN 60 SEGUNDOS?", "balls": "BOLAS", "full": "¡LLENO!",
-           "almost": "SE LLENA ASÍ...", "taking": "VA GANANDO", "wins": "¡GANA!",
+           "almost": "SE LLENA ASÍ...", "taking": "VA GANANDO", "wins": "¡GANA!", "broke": "¡SE ROMPIÓ!",
            "cta1": "¿QUÉ BRAINROT GANA LA PRÓXIMA?", "cta2": "SUSCRIBITE PARA LA RONDA {n}"},
 }
 
@@ -64,6 +64,7 @@ class Punch(Sim):
         self.space.damping = g.get("damping", 0.06)  # queda 6% de la velocidad tras 1 s → frenan en ~0.5 s
         self.space.iterations = 8
         self.space.use_spatial_hash(14, 12000)
+        self.ring_segs = []
         segs = 120
         for i in range(segs):
             a0, a1 = TAU * i / segs, TAU * (i + 1) / segs
@@ -72,6 +73,7 @@ class Punch(Sim):
                                (self.cx + rr * math.cos(a1), self.cy + rr * math.sin(a1)), 6)
             s.elasticity, s.friction = 0.3, 0.6
             self.space.add(s)
+            self.ring_segs.append(s)
         # brazos (dibujo + empuje geométrico)
         self.hw, self.hh = g["head_w"], g["head_h"]
         self.arm_len = self.R - self.hh / 2 - 6
@@ -98,7 +100,11 @@ class Punch(Sim):
         # ley 6: r/R medido ≈ 0.0765 con 1 bola. El medidor ve el núcleo saturado (≈0.72 r real).
         self.r0 = g.get("r_first", 0.106) * self.R
         self.r_exp = g.get("r_exp", 0.30)
-        self.r_min = g.get("r_min", 5.2)
+        self.r_min = g.get("r_min", 4.6)                  # chiquitas al final: entran MUCHÍSIMAS
+        # lleno de verdad: el círculo tapado (empaquetado ~0.78) con bolas de radio mínimo
+        self.g["capacity"] = int(g.get("packing", 0.78) * (self.R / self.r_min) ** 2)
+        self.broken_at = None
+        self.frags = []
         # ciclo
         # índice 0 = martillo DERECHO (ángulo en -90°..90°), índice 1 = IZQUIERDO (90°..270°), en espejo.
         # La primera bola está arriba → el primer golpe es arriba.
@@ -114,7 +120,7 @@ class Punch(Sim):
         self.close_from = list(self.ang)
         self.close_to = self._closed(-1, 0.0)
         self.cyc = dict(close_T=0.3, hold=0.1)
-        self.mult_seq = g.get("mult_seq", [2, 3, 4, 5])   # ×2, ×3, ×4, ×5 y después se queda en el último
+        self.mult_step = g.get("mult_step", 2)            # ×2, ×4, ×6, ×8, ×10, ×12… (sube en cada golpe)
         self.pops, self.flashes = [], []
         self.last_voice = -9
         self.round = g.get("round", 2)
@@ -261,11 +267,11 @@ class Punch(Sim):
             # capacidad fija de la cuña: las que entran en el triángulo entre los guantes
             r_new = self.r_for(len(P))
             wedge_area = 0.5 * (self.gap + 0.1) * (self.R ** 2 - 40 ** 2)
-            cap = max(1, int(wedge_area * self.g.get("wedge_fill", 0.22) / (math.pi * r_new ** 2)))
+            cap = max(1, int(wedge_area * self.g.get("wedge_fill", 0.015) / (math.pi * r_new ** 2)))
             if len(caught) > cap:
                 caught = caught[np.argsort(off[caught])][:cap]
             k = len(caught)
-            mult = self.mult_seq[min(self.mult_i, len(self.mult_seq) - 1)] if k else 1
+            mult = self.mult_step * (self.mult_i + 1) if k else 1
             room = self.g["capacity"] - len(P)
             n_new = max(0, min(k * (mult - 1), room))
             if k:
@@ -320,8 +326,35 @@ class Punch(Sim):
         self.audio.event(self.t - 0.3, "riser", 1.0)
         self.audio.event(self.t, "boom", 1.0)
         self.audio.event(self.t + 0.05, "chord", 1.0)
+        self.audio.event(self.t + 0.35, "crack", 1.0)
         self.audio.voice(self.t + 0.9, self.chars[self.cur].key, "full", 0.0, 1.2)
         self.cam.kick(0.8)
+
+    def _break(self):
+        """no entra nada más: el aro se parte y se sueltan todas las bolas."""
+        self.broken_at = self.t
+        self.space.remove(*self.ring_segs)
+        self.ring_segs = []
+        for b in self.arm_bodies:
+            for sh in b.shapes:
+                sh.filter = pymunk.ShapeFilter(mask=0)
+        self.space.gravity = (0, 2300)
+        self.space.damping = 0.9
+        for b in self.bodies:
+            dx, dy = b.position.x - self.cx, b.position.y - self.cy
+            d = math.hypot(dx, dy) or 1
+            sp = self.rng.uniform(250, 900) * (0.4 + 0.6 * d / self.R)
+            b.velocity = (dx / d * sp + self.rng.uniform(-80, 80), dy / d * sp - self.rng.uniform(100, 500))
+        n = 16
+        for i in range(n):
+            a0 = TAU * i / n + self.rng.uniform(-0.05, 0.05)
+            a1 = TAU * (i + 1) / n + self.rng.uniform(-0.05, 0.05)
+            am = (a0 + a1) / 2
+            sp = self.rng.uniform(300, 700)
+            self.frags.append([a0, a1, 0.0, 0.0, math.cos(am) * sp, math.sin(am) * sp - 300, 0.0, self.rng.uniform(-4, 4)])
+        self.audio.event(self.t, "shatter", 1.0)
+        self.audio.event(self.t, "boom", 0.8)
+        self.cam.kick(1.0)
 
     # ---------- movimiento de los brazos (leyes 2 y 4) ----------
     def _arm_targets(self):
@@ -437,11 +470,27 @@ class Punch(Sim):
             w = max(abs(wrap(a - b)) for a, b in zip(self.ang, self.prev_ang)) / dt
             mass = min(1.0, len(self.bodies) / 600)
             self.audio.rumble(self.t, min(1.0, 0.1 + 0.1 * w * (0.2 + 0.8 * mass)))
-        if self.done_at is not None and self.end_at is None and self.t > self.done_at + 5.0:
-            self.end_at = self.t
+        if self.done_at is not None and self.broken_at is None and self.t > self.done_at + 1.3:
+            self._break()
+        if self.broken_at is not None:
+            for f in self.frags:
+                f[2] += f[4] * dt; f[3] += f[5] * dt; f[5] += 2300 * dt; f[6] += f[7] * dt
+            if self.frame % 3 == 0 and self.bodies:
+                P = self.positions()
+                gone = np.nonzero(P[:, 1] > H + 60)[0]
+                if len(gone):
+                    gs = set(gone.tolist())
+                    for i in gone:
+                        self.space.remove(self.bodies[i], *self.bodies[i].shapes)
+                    keep = [i for i in range(len(self.bodies)) if i not in gs]
+                    self.bodies = [self.bodies[i] for i in keep]
+                    self.col = [self.col[i] for i in keep]
+                    self.rad = [self.rad[i] for i in keep]
+            if self.end_at is None and self.t > self.broken_at + 3.2:
+                self.end_at = self.t
 
     def _contain(self):
-        if not self.bodies:
+        if not self.bodies or self.broken_at is not None:
             return
         P = self.positions()
         rad = np.hypot(P[:, 0] - self.cx, P[:, 1] - self.cy)
@@ -461,9 +510,20 @@ class Punch(Sim):
     # ---------- dibujo ----------
     def draw_world(self, c):
         ring = skia.Paint(Color4f=rgb((0.95, 0.95, 0.97), 1.0), AntiAlias=True, Style=skia.Paint.kStroke_Style, StrokeWidth=8)
-        c.drawCircle(self.cx, self.cy, self.R + 6, ring)
+        rr6 = self.R + 6
+        if self.broken_at is None:
+            c.drawCircle(self.cx, self.cy, rr6, ring)
+            if self.done_at is not None:
+                self._draw_cracks(c, min(1.0, (self.t - self.done_at) / 1.2))
+        else:
+            # fragmentos del aro volando
+            for a0, a1, dx, dy, _, _, rot, _ in self.frags:
+                c.save(); c.translate(self.cx + dx, self.cy + dy)
+                c.rotate(math.degrees(rot))
+                c.drawArc(skia.Rect(-rr6, -rr6, rr6, rr6), math.degrees(a0), math.degrees(a1 - a0), False, ring)
+                c.restore()
         frac = min(1.0, len(self.bodies) / self.g["capacity"])
-        if frac > 0:
+        if frac > 0 and self.broken_at is None:
             arc = skia.Paint(Color4f=rgb(self.pal["accent"]), AntiAlias=True, Style=skia.Paint.kStroke_Style,
                              StrokeWidth=9, StrokeCap=skia.Paint.kRound_Cap)
             rr = self.R + 22
@@ -478,6 +538,30 @@ class Punch(Sim):
         for x, y, s, age in self.pops:
             pop = 1 + 0.35 * max(0, 0.15 - age) / 0.15
             draw_text(c, s, x, y + 20, 62 * pop, (1, 1, 1), stroke=10, alpha=min(1, (1.0 - age) * 3), max_w=360)
+
+    def _draw_cracks(self, c, k):
+        """grietas que crecen sobre el aro antes de romperse."""
+        if not hasattr(self, "_crack_lines"):
+            rng = self.rng
+            self._crack_lines = []
+            for _ in range(7):
+                a = rng.uniform(0, TAU)
+                pts = [(a, 0.0)]
+                for j in range(5):
+                    pts.append((pts[-1][0] + rng.uniform(-0.05, 0.05), (j + 1) * rng.uniform(10, 22)))
+                self._crack_lines.append(pts)
+        p = skia.Paint(Color4f=skia.Color4f(1, 1, 1, 0.95), AntiAlias=True, Style=skia.Paint.kStroke_Style,
+                       StrokeWidth=3, StrokeCap=skia.Paint.kRound_Cap)
+        rr = self.R + 6
+        for pts in self._crack_lines:
+            m = max(1, int(len(pts) * k))
+            path = skia.Path()
+            for j, (a, off) in enumerate(pts[:m]):
+                side = -1 if j % 2 else 1
+                x = self.cx + (rr + side * off) * math.cos(a)
+                y = self.cy + (rr + side * off) * math.sin(a)
+                path.moveTo(x, y) if j == 0 else path.lineTo(x, y)
+            c.drawPath(path, p)
 
     def draw_balls(self, c):
         """esfera sombreada: borde oscuro + núcleo saturado + brillo (como la referencia)."""
@@ -507,6 +591,11 @@ class Punch(Sim):
         rod = skia.Paint(Color4f=rgb((0.62, 0.63, 0.67)), AntiAlias=True, StrokeWidth=2 * self.rod_w,
                          StrokeCap=skia.Paint.kRound_Cap)
         rod_hi = skia.Paint(Color4f=rgb((0.9, 0.9, 0.93)), AntiAlias=True, StrokeWidth=5, StrokeCap=skia.Paint.kRound_Cap)
+        fade = 1.0 if self.broken_at is None else max(0.0, 1 - (self.t - self.broken_at) / 0.35)
+        if fade <= 0:
+            return
+        if fade < 1:
+            c.saveLayerAlpha(None, int(255 * fade))
         for a in self.ang:
             c.save(); c.translate(self.cx, self.cy); c.rotate(math.degrees(a))
             c.drawLine(0, 0, L - hh / 2, 0, rod)
@@ -518,10 +607,15 @@ class Punch(Sim):
         c.drawCircle(self.cx, self.cy, 18, skia.Paint(Color4f=rgb((0.3, 0.3, 0.35)), AntiAlias=True,
                                                       Style=skia.Paint.kStroke_Style, StrokeWidth=3))
         c.drawCircle(self.cx, self.cy, 6, skia.Paint(Color4f=rgb((0.3, 0.3, 0.35)), AntiAlias=True))
+        if fade < 1:
+            c.restore()
 
     def draw_hud(self, c):
         L, acc = self.L, self.pal["accent"]
         n = len(self.bodies)
+        self.n_max = max(getattr(self, "n_max", 0), n)
+        if self.broken_at is not None:
+            n = self.n_max                      # el contador queda en el máximo mientras se caen
         done = self.done_at is not None
         if done and self.t - self.done_at > 0.3:
             draw_text(c, L["almost"], W / 2, 250, 76, (1, 1, 1), stroke=12)
@@ -544,18 +638,23 @@ class Punch(Sim):
         if done:
             dt = self.t - self.done_at
             k = min(1.0, dt / 0.2)
-            c.drawCircle(self.cx, self.cy, self.R, skia.Paint(Color4f=skia.Color4f(0, 0, 0, min(0.5, dt)), AntiAlias=True))
-            box = skia.RRect.MakeRectXY(skia.Rect(W / 2 - 290, self.cy - 120, W / 2 + 290, self.cy + 40), 34, 34)
-            c.drawRRect(box, skia.Paint(Color4f=skia.Color4f(0.05, 0.05, 0.08, 0.88 * k), AntiAlias=True))
-            draw_text(c, L["full"], W / 2, self.cy + 10, 170 * (0.7 + 0.3 * k), acc, stroke=14)
-            if dt > 1.0:
-                w = self.chars[self.winner]
-                img, half = w.sprite(95)
-                c.drawImage(img, W / 2 - half, self.cy + 70)
-                draw_text(c, f"{w.name} {L['wins']}", W / 2, self.cy + 330, 92, w.color, stroke=14)
-            if dt > 2.8:
-                draw_text(c, L["cta1"], W / 2, H - 150, 58, (1, 1, 1), stroke=10)
-                draw_text(c, L["cta2"].format(n=self.round) + "  >>", W / 2, H - 78, 52, acc, stroke=10)
+            if self.broken_at is None:
+                # lleno: se ve el círculo tapado y el cartel encima mientras aparecen las grietas
+                box = skia.RRect.MakeRectXY(skia.Rect(W / 2 - 270, self.cy - 105, W / 2 + 270, self.cy + 35), 34, 34)
+                c.drawRRect(box, skia.Paint(Color4f=skia.Color4f(0.05, 0.05, 0.08, 0.85 * k), AntiAlias=True))
+                draw_text(c, L["full"], W / 2, self.cy + 10, 160 * (0.7 + 0.3 * k), acc, stroke=14)
+            else:
+                db = self.t - self.broken_at
+                kb = min(1.0, db / 0.25)
+                draw_text(c, L["broke"], W / 2, self.cy - 40, 150 * (0.7 + 0.3 * kb), (1, 0.35, 0.3), stroke=16, glow=14)
+                if db > 0.7:
+                    w = self.chars[self.winner]
+                    img, half = w.sprite(90)
+                    c.drawImage(img, W / 2 - half, self.cy + 10)
+                    draw_text(c, f"{w.name} {L['wins']}", W / 2, self.cy + 260, 88, w.color, stroke=14)
+                if db > 1.5:
+                    draw_text(c, L["cta1"], W / 2, H - 150, 58, (1, 1, 1), stroke=10)
+                    draw_text(c, L["cta2"].format(n=self.round) + "  >>", W / 2, H - 78, 52, acc, stroke=10)
 
 
 def _glove(c, hw, hh):

@@ -1,41 +1,27 @@
-"""Voces brainrot sintetizadas por nosotros (espeak-ng + procesado). Nunca el audio original del meme.
+"""Voces de los brainrots: SOLO si hay grabaciones propias en assets/voices/.
 
-Si espeak-ng no está instalado, devuelve None y el video sale sin voces (no se rompe nada).
+Las voces sintetizadas (espeak) quedaban mal, así que se sacaron. Sin archivos, el video sale sin voces.
+Archivos aceptados (wav o mp3, cualquier sample rate, se normalizan solos):
+    assets/voices/<personaje>_short.wav   (p. ej. tungtung_short.wav: "tung tung")
+    assets/voices/<personaje>_full.wav    (p. ej. tungtung_full.wav: "tung tung tung sahur")
+    assets/voices/<personaje>.wav         (se usa para los dos si no hay los otros)
+Personajes: tungtung, tralalero, cappuccina.
+OJO: tienen que ser grabaciones propias o con licencia. El audio original de los memes puede generar reclamos de copyright.
 """
-import os, shutil, subprocess, tempfile, wave
+import os, subprocess
 import numpy as np
 from audio.synth import SR
 
-PHRASES = {
-    "tungtung": {"full": ("tung tung tung tung sahur", "it", 34, 150), "short": ("tung tung", "it", 30, 190)},
-    "tralalero": {"full": ("tralalero tralala", "it", 55, 170), "short": ("tralala", "it", 60, 190)},
-    "cappuccina": {"full": ("ballerina cappuccina", "it+f3", 75, 160), "short": ("cappuccina", "it+f3", 80, 185)},
-}
+DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "voices")
 _cache = {}
 
 
-def _espeak(text, voice, pitch, speed):
-    exe = shutil.which("espeak-ng") or shutil.which("espeak")
-    if not exe:
+def _load(path):
+    r = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
+                       capture_output=True)
+    y = np.frombuffer(r.stdout, np.float32).copy()
+    if not len(y):
         return None
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        path = f.name
-    try:
-        subprocess.run([exe, "-v", voice, "-p", str(pitch), "-s", str(speed), "-a", "180", "-w", path, text],
-                       check=True, capture_output=True)
-        with wave.open(path) as w:
-            sr = w.getframerate()
-            x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
-    finally:
-        os.remove(path)
-    # remuestreo a SR + un poco de "cartoon": doble voz desafinada y brillo
-    n = int(len(x) * SR / sr)
-    x = np.interp(np.linspace(0, len(x) - 1, n), np.arange(len(x)), x).astype(np.float32)
-    shifted = np.interp(np.arange(n) * 1.06, np.arange(n), x, right=0).astype(np.float32)
-    y = 0.7 * x + 0.45 * shifted
-    y = np.tanh(y * 1.8) / np.tanh(1.8)
-    from audio.synth import band
-    y = band(y, 90, 3200)   # voz más cálida, sin siseo
     fade = int(0.01 * SR)
     y[:fade] *= np.linspace(0, 1, fade)
     y[-fade:] *= np.linspace(1, 0, fade)
@@ -45,6 +31,13 @@ def _espeak(text, voice, pitch, speed):
 def voice(key, kind="short"):
     k = (key, kind)
     if k not in _cache:
-        spec = PHRASES.get(key, {}).get(kind)
-        _cache[k] = _espeak(*spec) if spec else None
+        _cache[k] = None
+        for name in (f"{key}_{kind}", key):
+            for ext in (".wav", ".mp3", ".ogg", ".m4a"):
+                p = os.path.join(DIR, name + ext)
+                if os.path.exists(p):
+                    _cache[k] = _load(p)
+                    break
+            if _cache[k] is not None:
+                break
     return _cache[k]

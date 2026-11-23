@@ -2,12 +2,14 @@
 1. **Los dos martillos GIRAN TODO EL TIEMPO, cada uno para su lado** (uno horario, el otro antihorario).
    Nunca se frenan ni vuelven: se encuentran, chocan, lo que quedó entre ellos se multiplica y siguen de largo.
    Uno va un poco más rápido que el otro, así el punto de choque recorre el círculo.
-2. **Lo que quedó en el espacio que barren se multiplica al chocar: ×2, ×3, ×4, ×5** (sube un número por golpe y
-   queda en ×5). Configurable en el genoma: `mult_seq`.
+2. **Lo que quedó en el espacio entre los martillos se multiplica al chocar: ×2, ×4, ×6, ×8, ×10, ×12…**
+   (sube de a 2 en cada golpe, sin tope). Configurable: `mult_step`.
 3. **Todas las bolas del MISMO tamaño** en todo momento (cuando hay más, se achican todas juntas). Nada de bolas
    nuevas más chicas que las viejas.
 4. **Movimiento suave y continuo**: aceleran de a poco al acercarse al choque. Nada de arranques/frenadas secas.
-5. Que se llene rápido (≈15 s) **no es problema**.
+5. **Que haya MUCHÍSIMAS bolitas** (~7.600) y el círculo quede tapado; video de ~50 s.
+6. **Cuando no entra más, el aro se ROMPE**: grietas → se parte → se sueltan todas las bolitas → recién ahí termina.
+7. **Voces brainrot**: las sintetizadas quedaban mal → se sacaron. Solo se usan grabaciones en `assets/voices/`.
 
 > **Manda `MEDIDAS.md` + `target.json`.** El movimiento de `formats/punch.py` se valida con
 > `python -m tools.motion.measure` + `python -m tools.motion.compare` (tiene que dar PASA). Lo de abajo es el análisis visual previo.

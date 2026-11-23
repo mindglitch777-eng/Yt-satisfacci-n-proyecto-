@@ -176,6 +176,12 @@ class AudioEngine:
             elif name == "slam":
                 w = synth.impact("metal", 1.0, rng)
                 self._add(dry, int(t * SR), w, 0.35 * gain, 0.35 * gain)
+            elif name == "crack":
+                w = synth.crack(rng)
+                self._add(dry, int(t * SR), w, 0.35 * gain, 0.35 * gain)
+            elif name == "shatter":
+                w = synth.shatter(rng)
+                self._add(dry, int(t * SR), w, 0.5 * gain, 0.45 * gain)
             elif name == "pop":
                 w = synth.pop(rng, gain)
                 self._add(dry, int(t * SR), w, 0.22, 0.22)

@@ -177,3 +177,33 @@ def band(x, lo, hi):
         m *= 1 / (1 + (lo / np.maximum(f, 1e-3)) ** 8)
     m *= 1 / (1 + (f / hi) ** 8)
     return np.fft.irfft(X * m, nfft)[:n].astype(np.float32)
+
+
+def crack(rng):
+    """grieta: chasquidos secos y agudos que se encadenan (vidrio/plástico tensionado)."""
+    out = np.zeros(int(SR * 1.0), np.float32)
+    t = 0.0
+    for k in range(9):
+        t += rng.uniform(0.04, 0.14)
+        x = t_axis(0.05)
+        f = rng.uniform(1800, 3200)
+        w = (np.sin(2 * np.pi * f * x) * 0.6 + noise(len(x), rng) * 0.8) * np.exp(-x * 140)
+        i = int(t * SR)
+        if i + len(w) < len(out):
+            out[i:i + len(w)] += w * (0.4 + 0.08 * k)
+    return out
+
+
+def shatter(rng):
+    """rotura: estallido + lluvia de fragmentos que se va apagando."""
+    x = t_axis(2.2)
+    body = band(noise(len(x), rng), 300, 7000) * np.exp(-x * 3.5)
+    tinkles = np.zeros(len(x), np.float32)
+    for _ in range(40):
+        i = int(rng.uniform(0.02, 1.6) * SR)
+        f = rng.uniform(2500, 6000)
+        y = t_axis(0.08)
+        w = np.sin(2 * np.pi * f * y) * np.exp(-y * 60) * rng.uniform(0.1, 0.35)
+        if i + len(w) < len(tinkles):
+            tinkles[i:i + len(w)] += w
+    return (body * 0.9 + tinkles).astype(np.float32)
