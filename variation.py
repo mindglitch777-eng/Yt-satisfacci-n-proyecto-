@@ -26,6 +26,38 @@ def punch_genome(seed):
     }
 
 
+def press_genome(seed):
+    """PRENSA ×4 (reference/formats/press/SPEC.md)."""
+    r = random.Random(seed)
+    return {
+        "seed": seed, "format": "press", "lang": "en",
+        "chars": r.sample(["tralalero", "tungtung", "cappuccina"], 3),
+        "palette": {"bg": (0.015, 0.02, 0.05), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
+        "mult": 4, "r_first": 0.06, "r_min": 4.6, "damping": 0.85, "center_pull": 260, "t_wait": 2.0, "wall_bounce": 0.92, "ball_bounce": 0.85,
+        "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
+        "root": r.choice([130.8, 146.8, 164.8]), "timbre": r.choice(["marimba", "pluck"]),
+        "bpm": 120, "round": r.randint(2, 9),
+    }
+
+
+def slam_genome(seed):
+    """MARTILLO GIGANTE (reference/formats/slam/SPEC.md)."""
+    r = random.Random(seed)
+    return {
+        "seed": seed, "format": "slam", "lang": "en",
+        "chars": r.sample(["tralalero", "tungtung", "cappuccina"], 3),
+        "palette": {"bg": (0.015, 0.02, 0.05), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
+        "mult": 4, "r_first": 0.045, "r_min": 5.5, "gravity": 1500, "damping": 0.9,
+        "wall_bounce": 0.3, "ball_bounce": 0.25, "period": 3.0,
+        "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
+        "root": r.choice([130.8, 146.8, 164.8]), "timbre": r.choice(["marimba", "pluck"]),
+        "bpm": 120, "round": r.randint(2, 9),
+    }
+
+
+GENOMES = {"punch": None, "press": press_genome, "slam": slam_genome}
+
+
 def random_genome(seed):
     r = random.Random(seed)
     return {
