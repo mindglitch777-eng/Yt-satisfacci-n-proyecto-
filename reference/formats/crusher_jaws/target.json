@@ -1,0 +1,21 @@
+{
+ "source": "reference/videos/raw/nexusboxlab_crusher_9.6M.mp4",
+ "summary": {
+  "machine_period_s": 2.1,
+  "claps": 22,
+  "clap_interval_early_s": 0.97,
+  "clap_interval_late_s": 0.7,
+  "clap_hold_s": 0.37,
+  "first_claps_aim_error_deg": 79.0,
+  "arm_velocity_corr": 0.61,
+  "arm_mean_speed_deg_s": 80,
+  "arm_moving_pct": [
+   32,
+   30
+  ],
+  "ball_r_over_R_first": 0.0396,
+  "ball_r_over_R_last": 0.0081,
+  "mass_in_top_half_pct": 62,
+  "excluded_2x": []
+ }
+}

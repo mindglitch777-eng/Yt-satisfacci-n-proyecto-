@@ -1,0 +1,21 @@
+{
+ "source": "reference/videos/raw/xbongobeats_2cones_5.3M.mp4",
+ "summary": {
+  "machine_period_s": 0.23,
+  "claps": 33,
+  "clap_interval_early_s": 0.93,
+  "clap_interval_late_s": 0.43,
+  "clap_hold_s": 0.1,
+  "first_claps_aim_error_deg": 6.0,
+  "arm_velocity_corr": -0.21,
+  "arm_mean_speed_deg_s": 201,
+  "arm_moving_pct": [
+   87,
+   90
+  ],
+  "ball_r_over_R_first": 0.0173,
+  "ball_r_over_R_last": 0.0087,
+  "mass_in_top_half_pct": 39,
+  "excluded_2x": []
+ }
+}
