@@ -1,0 +1,21 @@
+{
+ "source": "reference/videos/raw/splitworks_iris_4.1M.mp4",
+ "summary": {
+  "machine_period_s": 0.23,
+  "claps": 0,
+  "clap_interval_early_s": 0.0,
+  "clap_interval_late_s": 0.0,
+  "clap_hold_s": null,
+  "first_claps_aim_error_deg": null,
+  "arm_velocity_corr": -0.07,
+  "arm_mean_speed_deg_s": 15,
+  "arm_moving_pct": [
+   9,
+   7
+  ],
+  "ball_r_over_R_first": 0.0336,
+  "ball_r_over_R_last": 0.0087,
+  "mass_in_top_half_pct": 72,
+  "excluded_2x": []
+ }
+}

@@ -105,6 +105,7 @@ def measure(f, t0=0, dur=40, tiktok=False, scale_to=540):
             ar = ndimage.sum(ball, lab, range(1, n + 1)); ar = ar[ar > 3]
             if len(ar): rr = float(np.sqrt(np.median(ar) / np.pi) / R)
         rows.append({"t": round(t0 + i / FPS, 3), "arms": pk, "ball_px": int(ball.sum()),
+                     "mach": [int(x) for x in hist],
                      "my": float(dy[ball].mean()) if ball.any() else None,
                      "mx": float(dx[ball].mean()) if ball.any() else None, "r": rr})
     return {"video": f, "circle": [cx, cy, R], "res": [w, h], "rows": rows,
@@ -142,7 +143,18 @@ def summarize(m):
     aim = [abs(wrap(e["at"] - e["mass_at"])) for e in ev[:6] if e["mass_at"] is not None]
     radii = [(r["t"], round(r["r"], 4)) for r in rows if r["r"]]
     top = [r["my"] < 0 for r in rows if r["my"] is not None and r["ball_px"] > 300]
+    # ritmo genérico de la máquina (sirve para cualquier formato): periodo dominante del movimiento angular
+    H = np.array([r["mach"] for r in rows], float)
+    period = None
+    if len(H) > 60 and H.sum() > 0:
+        mv_series = np.abs(np.diff(H, axis=0)).sum(1)
+        x = mv_series - mv_series.mean()
+        ac = np.correlate(x, x, "full")[len(x) - 1:]
+        ac /= ac[0] if ac[0] else 1
+        lo, hi = int(.25 * FPS), min(len(ac) - 1, int(4 * FPS))
+        if hi > lo: period = round((lo + int(np.argmax(ac[lo:hi]))) / FPS, 2)
     return {
+        "machine_period_s": period,
         "claps": len(ev),
         "clap_interval_early_s": round(float(np.median(iv[:third])), 2),
         "clap_interval_late_s": round(float(np.median(iv[-third:])), 2),

@@ -1,0 +1,21 @@
+{
+ "source": "reference/videos/raw/neonbounce_bighammer_6.6M.mp4",
+ "summary": {
+  "machine_period_s": 1.2,
+  "claps": 49,
+  "clap_interval_early_s": 0.83,
+  "clap_interval_late_s": 0.47,
+  "clap_hold_s": 0.07,
+  "first_claps_aim_error_deg": 1.0,
+  "arm_velocity_corr": 0.07,
+  "arm_mean_speed_deg_s": 107,
+  "arm_moving_pct": [
+   39,
+   19
+  ],
+  "ball_r_over_R_first": 0.0164,
+  "ball_r_over_R_last": 0.0148,
+  "mass_in_top_half_pct": 20,
+  "excluded_2x": []
+ }
+}
