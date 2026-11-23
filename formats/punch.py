@@ -104,8 +104,9 @@ class Punch(Sim):
         # La primera bola está arriba → el primer golpe es arriba.
         self.side = -1                                   # -1 = chocan arriba, +1 = chocan abajo
         self.target = -math.pi / 2
-        a0 = math.radians(55)
-        self.ang = [-math.pi / 2 + self.gap / 2 + a0, 1.5 * math.pi - self.gap / 2 - a0]
+        # brazo 0 gira en sentido horario (+), brazo 1 antihorario (−); arrancan a los costados de la bola
+        self.ang = [-math.pi / 2 - math.radians(70), -math.pi / 2 + math.radians(70)]
+        self.armed = True
         self.prev_ang = list(self.ang)
         for b, a in zip(self.arm_bodies, self.ang):
             b.angle = a
@@ -324,34 +325,40 @@ class Punch(Sim):
 
     # ---------- movimiento de los brazos (leyes 2 y 4) ----------
     def _arm_targets(self):
-        c = self.cyc
-        u_t = self.t - self.cyc_t0
-        if self.phase == "open":
-            if u_t >= c["open_T"]:
-                self.phase, self.cyc_t0 = "wait", self.t
-                self.ang = list(self.open_to)
-                return list(self.open_to)
-            lag = getattr(self, "lag", 0.0)
-            es = [ease_open(u_t / c["open_T"]), ease_open((u_t - lag) / max(1e-3, c["open_T"] - lag))]
-            return [a + (b - a) * e for a, b, e in zip(self.open_from, self.open_to, es)]
-        if self.phase == "wait":
-            if u_t >= c["wait"]:
-                self.phase, self.cyc_t0 = "close", self.t
-                self.close_from = list(self.ang)
-            return list(self.ang)
-        if self.phase == "close":
-            to = self.close_to
-            if u_t >= c["close_T"]:
-                self.phase, self.cyc_t0 = "hold", self.t
-                self._clap()
-                return to
-            e = ease_close(u_t / c["close_T"])
-            # desplazamiento exacto (sin "camino corto"): cada brazo vuelve por donde abrió → siempre tijera
-            return [a + (b - a) * e for a, b in zip(self.close_from, to)]
-        # hold: guantes juntos
-        if u_t >= c["hold"] and self.done_at is None:
-            self._new_cycle()
-        return list(self.ang)
+        """los dos martillos GIRAN TODO EL TIEMPO, cada uno para su lado (uno horario, el otro antihorario).
+        Nunca se frenan ni vuelven: se encuentran, chocan, lo del medio se multiplica y siguen de largo."""
+        late = min(1.0, self.t / self.g.get("ritard_t", 18.0))
+        base = math.radians(self.g.get("spin_early", 175) + (self.g.get("spin_late", 140) - self.g.get("spin_early", 175)) * late)
+        d = (self.ang[1] - self.ang[0]) % TAU            # hueco que se va cerrando (0 = chocan)
+        near = 1 - min(d, TAU - d) / math.pi             # 0 = opuestos, 1 = juntos
+        sp = base * (0.7 + 0.6 * near) * self.dt         # aceleran suave al acercarse al choque, mismo ritmo los dos
+        k = self.g.get("speed_ratio", 1.18)                 # uno un poco más rápido: el punto de choque va rotando
+        new = [self.ang[0] + sp * 2 * k / (1 + k), self.ang[1] - sp * 2 / (1 + k)]
+        d_new = (new[1] - new[0]) % TAU
+        # fases para el empuje: acercándose (aprietan lo del medio) / cruzándose (se atraviesan) / libres
+        if d_new < self.gap * 1.15 or d_new > TAU - self.gap * 1.15:
+            self.phase = "cross"
+        elif d_new < 1.2:
+            self.phase = "close"
+        else:
+            self.phase = "free"
+        self._arm_collide(self.phase != "cross")
+        if d_new > math.pi:
+            self.armed = True
+        if getattr(self, "armed", True) and d_new <= self.gap and self.done_at is None:
+            self.armed = False
+            self.target = new[0] + d_new / 2
+            self._clap()
+        return new
+
+    def _arm_collide(self, on):
+        if getattr(self, "_coll_on", True) == on:
+            return
+        self._coll_on = on
+        f = pymunk.ShapeFilter() if on else pymunk.ShapeFilter(mask=0)
+        for b in self.arm_bodies:
+            for sh in b.shapes:
+                sh.filter = f
 
     def _sweep(self, P0, new_ang):
         """empuje geométrico: lo que la varilla barrió en este frame queda delante de ella."""
@@ -366,6 +373,8 @@ class Punch(Sim):
         phi1 = np.arctan2(dy1, dx1)
         rr = np.array(self.rad)
         reach = self.arm_len + self.hh / 2
+        if self.phase == "cross":
+            return
         for k in range(2):
             d = wrap(new_ang[k] - self.prev_ang[k])
             if abs(d) < 1e-4:
@@ -384,7 +393,7 @@ class Punch(Sim):
             rel1 = ((phi1 - new_ang[k]) * sgn + np.pi) % TAU - np.pi
             bad = np.nonzero(swept & (rel1 < wid1))[0]
             w_ang = d / self.dt
-            closing = self.phase in ("close", "hold")
+            closing = self.phase == "close"
             for i in bad:
                 ra = min(max(rad1[i], 20.0), self.R - rr[i])
                 push = wid1[i] + 0.004

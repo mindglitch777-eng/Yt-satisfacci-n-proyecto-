@@ -1,12 +1,12 @@
 # CORRECCIONES DEL USUARIO (mandan sobre todo lo demás, Nov 2026)
-1. **Dos martillos: uno a la IZQUIERDA y otro a la DERECHA.** Se mueven en espejo uno hacia el otro y chocan
-   (arriba o abajo). No vagan por el círculo.
+1. **Los dos martillos GIRAN TODO EL TIEMPO, cada uno para su lado** (uno horario, el otro antihorario).
+   Nunca se frenan ni vuelven: se encuentran, chocan, lo que quedó entre ellos se multiplica y siguen de largo.
+   Uno va un poco más rápido que el otro, así el punto de choque recorre el círculo.
 2. **Lo que quedó en el espacio que barren se multiplica al chocar: ×2, ×3, ×4, ×5** (sube un número por golpe y
    queda en ×5). Configurable en el genoma: `mult_seq`.
 3. **Todas las bolas del MISMO tamaño** en todo momento (cuando hay más, se achican todas juntas). Nada de bolas
    nuevas más chicas que las viejas.
-4. **Movimiento suave y satisfactorio**, tipo péndulo: rebotan hacia afuera después del choque, se frenan suave
-   y vuelven acelerando hasta chocar. Nada de arranques/frenadas secas.
+4. **Movimiento suave y continuo**: aceleran de a poco al acercarse al choque. Nada de arranques/frenadas secas.
 5. Que se llene rápido (≈15 s) **no es problema**.
 
 > **Manda `MEDIDAS.md` + `target.json`.** El movimiento de `formats/punch.py` se valida con

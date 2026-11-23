@@ -18,6 +18,7 @@ def punch_genome(seed):
         "capacity": 2600,
         "head_w": r.uniform(112, 124), "head_h": r.uniform(96, 106),
         "iv_early": 0.8, "iv_late": 1.3, "ritard_t": 18.0,
+        "spin_early": 175, "spin_late": 140, "speed_ratio": r.uniform(1.12, 1.3),
         "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
         "root": r.choice([130.8, 146.8, 164.8]),
         "timbre": r.choice(["marimba", "pluck"]),
