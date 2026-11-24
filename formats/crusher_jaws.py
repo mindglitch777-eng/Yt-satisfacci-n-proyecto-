@@ -172,9 +172,6 @@ class CrusherJaws(Arena):
         self.space.remove(*self.ring_segs)
         self.ring_segs = []
         self.spill_r0 = self.rad[0] if self.rad else self.r_min
-        for b in self.bodies:
-            dx, dy = b.position.x - self.cx, b.position.y - self.cy
-            b.velocity = (b.velocity.x + dx * 0.04, b.velocity.y + dy * 0.04)   # se derrama despacio, en masa
         self.audio.set_climax(self.t)
         self.audio.event(self.t - 0.3, "riser", 1.0)
         self.audio.event(self.t, "boom", 0.9)
@@ -183,16 +180,42 @@ class CrusherJaws(Arena):
     def update(self):
         super().update()
         if self.spill_at is None:
-            if self.t >= self.t_spill and len(self.bodies) >= 0.8 * self.cap_full:
+            if self.t >= self.t_spill + 3.0 and self.bodies:   # red de seguridad si la izquierda no atrapó nada
                 self._spill()
             return
         ds = self.t - self.spill_at
-        if self.bodies and ds < 1.5:                 # sin el aro, las bolas se aflojan y se ven más grandes (ref)
-            r = self.spill_r0 * (1 + 0.25 * ds / 1.5)
+        if self.bodies and ds < 2.0:                 # sin el aro, las bolas se aflojan y se ven más grandes (ref)
+            r = self.spill_r0 * (1 + 0.35 * ds / 2.0)
             for b in self.bodies:
                 for sh in b.shapes:
                     sh.unsafe_set_radius(r)
             self.rad = [r] * len(self.bodies)
+        # expansión de la masa: campo de velocidad uniforme desde el centro (no se desarma)
+        rate = 0.30 if ds < 2.0 else 0.07          # después de la descompresión se va yendo, densa
+        if self.bodies:
+            for b in self.bodies:
+                b.velocity = ((b.position.x - self.cx) * rate, (b.position.y - self.cy) * rate)
+            gt = getattr(self, "grow_target", 0)
+            if ds < 2.0 and len(self.bodies) < gt and self.frame % 2 == 0:
+                rm = self.R * math.exp(rate * ds)
+                want = int(gt - (gt - len(self.bodies)) * (1 - min(1.0, ds / 1.8)))
+                n = want - len(self.bodies)
+                if n > 0:
+                    before = len(self.bodies)
+                    self._spawn_cluster(self.cx, self.cy, n, drift=False, screen=True, within=rm)
+                    w = getattr(self, "wave", None)
+                    for i in range(before, len(self.bodies)):
+                        self.col[i] = w[3] if w else self.cur
+        # la ola de color nuevo avanza por la masa desde el aplastón
+        w = getattr(self, "wave", None)
+        if w and self.bodies:
+            x0, y0, t0, ci = w
+            reach = 420 * (self.t - t0)
+            P = self.positions()
+            for i in np.nonzero((P[:, 0] - x0) ** 2 + (P[:, 1] - y0) ** 2 < reach * reach)[0]:
+                self.col[i] = ci
+            if reach > 1.5 * self.R:                 # ref: la ola toma una parte (territorio), no todo
+                self.wave = None
         if self.frame % 3 == 0 and self.bodies:
             P = self.positions()
             self.remove_balls(np.nonzero((P[:, 0] < -60) | (P[:, 0] > W + 60) | (P[:, 1] < -60) | (P[:, 1] > H + 60))[0])
@@ -289,15 +312,24 @@ class CrusherJaws(Arena):
         self.audio.event(self.t, "slam", 0.6)
         if k == 0:
             return
+        first_spill = False
+        if (self.spill_at is None and self.t >= self.t_spill and jaw["side"] < 0
+                and len(self.bodies) >= 0.8 * self.cap_full):
+            self._spill()                            # ref: a los 23 s la pinza izquierda aplasta y desaparece el aro
+            first_spill = True
         if self.spill_at is not None:
-            n_new = 0                                # final: las pinzas vacían, ya no nace nada
+            n_new = k * self.mult                    # sin aro SIGUE multiplicando
+            if first_spill:                          # ref medido: ~900 → >1.700 visibles en 2 s (27% → 90% de pantalla)
+                n_new = max(n_new, len(self.bodies))
         elif len(self.bodies) + k >= self.cap_full * 0.97:
             n_new = k                                # guerra de colores: la mancha cambia de color (no crece)
         else:
             n_new = min(k * self.mult, self.cap_full - len(self.bodies))
         self.gen += 1
         self.cur = self.gen % len(self.colors)
-        if len(self.bodies) >= self.g.get("packed_n", 380) or self.spill_at is not None:
+        if self.spill_at is not None:
+            self._burst(cxm, cym, n_new, first_spill)
+        elif len(self.bodies) >= self.g.get("packed_n", 380):
             self._paint_territory(cxm, cym, k, n_new)
         else:
             self._spawn_cluster(cxm, cym, n_new)
@@ -308,6 +340,36 @@ class CrusherJaws(Arena):
         if n_new > k:
             self.pops.append([cxm, cym - 70, f"×{self.mult}" if k < 25 else f"+{n_new - k}", 0.0, self.colors[self.cur]])
         self.particles.burst(cxm, cym, self.colors[self.cur], n=22, speed=600, size=5)
+
+    def _burst(self, x0, y0, n, first):
+        """sin aro: el racimo nuevo se infla y viaja hacia afuera en arco (descompresión, masa densa)."""
+        ox, oy = x0 - self.cx, y0 - self.cy
+        on = math.hypot(ox, oy) or 1.0
+        before = len(self.bodies)
+        if first:
+            # descompresión (medido: 27% → 90% de pantalla en 2 s, ~900 → >1.700): la masa entera se expande
+            # como un bloque y las nuevas van llenando los huecos que abre la expansión (update)
+            self.grow_target = len(self.bodies) + n
+            self.wave = (x0, y0, self.t, self.cur)
+            return
+        else:
+            self._spawn_cluster(x0, y0, n, drift=False, screen=True)
+        damp = -math.log(max(1e-3, self.space.damping))
+        out = 0.9 * damp
+        for i, b in enumerate(self.bodies):
+            if i < before and not first:
+                continue
+            dx, dy = b.position.x - x0, b.position.y - y0
+            # se infla desde el aplastón; los racimos de después además viajan hacia afuera
+            vx, vy = dx * out, dy * out
+            if not first:
+                vx += ox / on * 260
+                vy += oy / on * 260
+            b.velocity = (b.velocity.x + vx, b.velocity.y + vy)
+        if first:
+            self.wave = (x0, y0, self.t, self.cur)
+        for i in range(before, len(self.bodies)):
+            self.col[i] = self.cur
 
     def _paint_territory(self, x0, y0, k, n_new):
         """círculo lleno: el aplastón convierte en el color nuevo una mancha compacta (×4 de lo aplastado) pegada a la
@@ -330,7 +392,7 @@ class CrusherJaws(Arena):
         for i in patch:
             self.col[i] = self.cur
 
-    def _spawn_cluster(self, x0, y0, n, drift=True):
+    def _spawn_cluster(self, x0, y0, n, drift=True, screen=False, within=None):
         """racimo compacto: ocupa los huecos libres más cercanos al punto del aplastón (se ve como una mancha que crece)."""
         if n <= 0:
             return
@@ -341,13 +403,20 @@ class CrusherJaws(Arena):
             for x, y in self.positions():
                 occ.add((int(x // d), int(y // d)))
         cand = []
-        span = int(self.R / d) + 2
+        span = int((1.4 if screen else 1.0) * (within or self.R) / d) + 2
         cx0, cy0 = int(x0 // d), int(y0 // d)
         for i in range(-span, span + 1):
             for j in range(-span, span + 1):
                 gx, gy = cx0 + i, cy0 + j
                 x, y = (gx + 0.5) * d, (gy + 0.5) * d
-                if (gx, gy) in occ or math.hypot(x - self.cx, y - self.cy) > self.R - r - 1:
+                if (gx, gy) in occ:
+                    continue
+                if screen:
+                    if not (r < x < W - r and r < y < H - r):
+                        continue
+                    if within is not None and math.hypot(x - self.cx, y - self.cy) > within:
+                        continue
+                elif math.hypot(x - self.cx, y - self.cy) > self.R - r - 1:
                     continue
                 cand.append((math.hypot(x - x0, y - y0), x, y))
         cand.sort()
