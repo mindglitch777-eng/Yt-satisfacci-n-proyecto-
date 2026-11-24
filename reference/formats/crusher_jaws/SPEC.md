@@ -1,3 +1,7 @@
+> **AVISO (24-11-2026): la implementación actual NO es fiel.** Ver `../TOP5_LOGICA_REAL.md`: las pinzas son brazos
+> en tijera que giran alrededor del engranaje y atraviesan el aro, las dos a la vez en contrafase. El detector actual
+> solo mira adentro del aro y por eso dio PASA con el movimiento equivocado.
+
 # SPEC — CRUSHER JAWS (fuente: reference/videos/raw/nexusboxlab_crusher_9.6M.mp4)
 
 ## Medición (tools/motion/measure.py --machine jaws)
