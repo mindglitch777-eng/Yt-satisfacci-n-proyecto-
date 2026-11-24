@@ -53,9 +53,11 @@ class Arena(Sim):
         self.r_big = g.get("r_big", 0.08) * self.R      # grandes (con cara) mientras entren cómodas
         self.r0 = self.r_big
         self.r_exp = g.get("r_exp", 0.3)
-        self.r_min = g.get("r_min", 4.6)
-        self.capacity = int(g.get("packing", 0.78) * (self.R / self.r_min) ** 2)
+        self.r_min = g.get("r_min", 4.0)
+        # lleno DE VERDAD: diminutas tapando el círculo (después explota)
+        self.capacity = int(g.get("packing", 0.80) * (self.R / self.r_min) ** 2)
         self.broken_at, self.frags = None, []
+        self.pending = []
         self.pops, self.flashes, self.dust = [], [], []
         self.round = g.get("round", 2)
         self.n_max = 0
@@ -64,18 +66,73 @@ class Arena(Sim):
     # ---------- bolas ----------
     def r_for(self, n):
         from formats.sizing import target_r
-        return target_r(n, self.R, self.r_big, self.r_min, self.g.get("crowd", 0.40))
+        return target_r(n, self.R, self.r_big, self.r_min, self.g.get("crowd", 0.30),
+                        self.g.get("r_mid", 0.022) * self.R, self.g.get("pack", 0.78))
 
     def add_ball(self, x, y, vx, vy, col):
         r = self.rad[0] if self.rad else self.r_for(1)
         b = pymunk.Body(1, pymunk.moment_for_circle(1, 0, r))
         b.position, b.velocity = (x, y), (vx, vy)
         s = pymunk.Circle(b, r)
-        s.elasticity, s.friction, s.collision_type = self.g.get("ball_bounce", 0.55), 0.3, BALL
+        s.elasticity, s.friction, s.collision_type = self.g.get("ball_bounce", 0.1), 0.3, BALL
         self.space.add(b, s)
         self.bodies.append(b)
         self.col.append(col)
         self.rad.append(r)
+
+    def spawn_free(self, x0, y0, n, col, drift=(0.0, 0.0), spread=30.0):
+        """nacen en huecos LIBRES (nunca encima de otra: nada de bolas que salen disparadas).
+        Primero los huecos más cercanos al punto; en la etapa final (diminutas) rellena los huecos de todo el
+        círculo, así queda tapado de verdad antes de explotar. Velocidad suave y acotada."""
+        if n <= 0:
+            return 0
+        r = self.rad[0] if self.rad else self.r_big
+        d = 2 * r * 1.02
+        occ = set()
+        if self.bodies:
+            for x, y in self.positions():
+                occ.add((int(x // d), int(y // d)))
+        span = int(self.R / d) + 2
+        cx0, cy0 = int(self.cx // d), int(self.cy // d)
+        free = []
+        for i in range(-span, span + 1):
+            for j in range(-span, span + 1):
+                gx, gy = cx0 + i, cy0 + j
+                x, y = (gx + 0.5) * d, (gy + 0.5) * d
+                if (gx, gy) in occ or math.hypot(x - self.cx, y - self.cy) > self.R - r - 1:
+                    continue
+                free.append((x, y))
+        self._free_frac = len(free) / max(1, len(free) + len(occ))
+        final = r <= self.r_min + 0.3
+        if final:
+            self.rng.shuffle(free)                      # rellena huecos de todo el círculo, sin deslizarse
+            drift = (0.0, 0.0)
+        else:
+            free.sort(key=lambda q: (q[0] - x0) ** 2 + (q[1] - y0) ** 2)
+        placed = 0
+        for x, y in free[:n]:
+            a = math.atan2(y - y0, x - x0)
+            sp = min(spread, 0.3 * math.hypot(x - x0, y - y0))   # expansión interna: suave
+            vx, vy = drift[0] + sp * math.cos(a), drift[1] + sp * math.sin(a)   # + deslizamiento parejo del racimo
+            self.add_ball(x + self.rng.uniform(-0.4, 0.4), y + self.rng.uniform(-0.4, 0.4), vx, vy, col)
+            placed += 1
+        if placed < n:
+            # no entran: quedan en espera y TODAS se achican de a poco hasta que haya lugar (formats/sizing.py)
+            self.pending.append([x0, y0, n - placed, col, drift])
+        if final and self.done_at is None and len(free) - placed < 0.03 * (len(free) + len(occ)):
+            self.climax()                               # diminutas y el círculo TAPADO (< 3% libre): explota
+        return placed
+
+    def pending_n(self):
+        return sum(p[2] for p in self.pending)
+
+    def flush_pending(self):
+        """cada pocos frames intenta ubicar las que estaban esperando lugar."""
+        if not self.pending or self.frame % 3 or self.done_at is not None:
+            return
+        todo, self.pending = self.pending, []
+        for x0, y0, n, col, drift in todo:
+            self.spawn_free(x0, y0, n, col, drift)
 
     def remove_balls(self, idx):
         idx = set(int(i) for i in idx)
@@ -100,6 +157,10 @@ class Arena(Sim):
         self.rad = [r] * len(self.bodies)
         return r
 
+    def count(self):
+        """bolas en pantalla (incluye las que una máquina tiene atrapadas fuera de la física)."""
+        return len(self.bodies)
+
     def positions(self):
         return np.array([b.position for b in self.bodies], np.float64).reshape(-1, 2)
 
@@ -118,7 +179,8 @@ class Arena(Sim):
         if self.broken_at is None and self.done_at is None:
             self.machine_step()
         from formats.sizing import smooth_sizes
-        smooth_sizes(self)
+        smooth_sizes(self, self.count() + self.pending_n())
+        self.flush_pending()
         super().step()
         self.contain()
 
@@ -135,7 +197,7 @@ class Arena(Sim):
         self.dust = [d for d in self.dust if d[4] < 0.5]
         if self.frame % 6 == 0:
             self.audio.set_tension(self.t, self.tension())
-        self.n_max = max(self.n_max, len(self.bodies))
+        self.n_max = max(self.n_max, self.count())
         if self.done_at is None and len(self.bodies) >= self.capacity:
             self.climax()
         if self.done_at is not None and self.broken_at is None and self.t > self.done_at + 1.3:
@@ -304,7 +366,7 @@ class Arena(Sim):
 
     def draw_hud(self, c):
         L, acc = self.L, self.pal["accent"]
-        n = self.n_max if self.broken_at is not None else len(self.bodies)
+        n = self.n_max if self.broken_at is not None else self.count()
         done = self.done_at is not None
         if not done:
             draw_text(c, L["t1"], W / 2, 170, 74, (1, 1, 1), stroke=12)

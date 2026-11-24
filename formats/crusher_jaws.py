@@ -132,7 +132,10 @@ class CrusherJaws(Arena):
     # ---------- ciclo ----------
     def machine_step(self):
         self._update_phis()
+        catch = math.radians(self.g.get("catch_deg", 88))
         for jaw in self.jaws:
+            if jaw["armed"] and jaw.get("held") is None and jaw["prev"] > catch >= jaw["phi"]:
+                self._grab(jaw)
             if 0.05 < jaw["p"] < P_IN - 0.03:
                 jaw["armed"] = True
             if jaw["armed"] and jaw["phi"] <= 0:              # la "T": aplastón
@@ -170,7 +173,7 @@ class CrusherJaws(Arena):
 
     def _inside_jaw(self, P, jaw):
         """bolas dentro del rombo formado por los dos brazos (polígono engranaje-codo-punta-punta-codo)."""
-        up, lo = self._arm_pts(jaw, math.radians(35))
+        up, lo = self._arm_pts(jaw, math.radians(self.g.get("catch_deg", 88)))
         poly = [up[0], up[1], up[2], lo[2], lo[1]]
         path = skia.Path()
         path.moveTo(*poly[0])
@@ -179,13 +182,37 @@ class CrusherJaws(Arena):
         path.close()
         return np.array([path.contains(float(x), float(y)) for x, y in P], bool)
 
+    def count(self):
+        return len(self.bodies) + sum(len(j.get("held") or []) for j in self.jaws)
+
+    def _grab(self, jaw):
+        """el rombo se cerró: lo que quedó adentro queda atrapado y se aprieta con la pinza (no se escapa)."""
+        jaw["held"] = []
+        if not self.bodies:
+            return
+        P = self.positions()
+        ins = np.nonzero(self._inside_jaw(P, jaw))[0]
+        cap = self.g.get("jaw_cap", 10 ** 9)
+        if len(ins) > cap:
+            ins = ins[np.argsort(np.abs(P[ins, 1] - self.cy))][:cap]
+        jaw["held"] = [(float(P[i, 0]), float(P[i, 1]), self.col[i]) for i in ins]
+        self.remove_balls(ins)
+
+    def _held_pos(self, jaw):
+        """posición dibujada de las atrapadas: se juntan hacia el punto de aplastón a medida que la pinza cierra."""
+        up, lo = self._arm_pts(jaw)
+        hx, hy = (up[1][0] + lo[1][0] + up[2][0] + lo[2][0]) / 4, (up[1][1] + lo[1][1] + up[2][1] + lo[2][1]) / 4
+        catch = math.radians(self.g.get("catch_deg", 88))
+        k = min(1.0, max(0.0, 1 - jaw["phi"] / catch)) ** 1.5
+        return [(x + (hx - x) * k * 0.85, y + (hy - y) * k * 0.85, c) for x, y, c in jaw["held"]], (hx, hy)
+
     def _lift(self):
         """altura a la que sale el racimo: corrige hacia arriba si la masa está baja y viceversa,
         para que la masa quede apenas por encima del centro (ref: 62% del tiempo arriba) en cualquier semilla."""
-        if not self.bodies:
-            return 0.1
+        if len(self.bodies) < 300:
+            return 0.0                                   # al principio el racimo va derecho a la otra pinza
         my = (float(np.mean([b.position.y for b in self.bodies])) - self.cy) / self.R
-        return float(np.clip(self.g.get("lift_base", 0.1) + self.g.get("lift_gain", 4.0) * (my + self.g.get("lift_target", 0.025)), -0.1, 0.4))
+        return float(np.clip(self.g.get("lift_base", 0.1) + self.g.get("lift_gain", 4.0) * (my + self.g.get("lift_target", 0.025)), -0.15, 0.3))
 
     def _crush(self, jaw):
         self._last_side = jaw["side"]
@@ -196,18 +223,14 @@ class CrusherJaws(Arena):
         hy = (up[2][1] + lo[2][1]) / 2
         ten = self.tension()
         pan = self.pan(hx)
-        k = 0
-        if self.bodies:
-            P = self.positions()
-            ins = np.nonzero(self._inside_jaw(P, mouth))[0]
-            cap = self.g.get("jaw_cap", 10 ** 9)
-            if len(ins) > cap:
-                ins = ins[np.argsort(np.abs(P[ins, 1] - self.cy))][:cap]
-            k = len(ins)
-            if k:
-                cxm, cym = P[ins].mean(axis=0)
-                self.crush_fx(ins, P)
-                self.remove_balls(ins)
+        held = jaw.get("held") or []
+        jaw["held"] = None
+        k = len(held)
+        if k:
+            pts, (cxm, cym) = self._held_pos(dict(jaw, held=held))
+            for x, y, c in pts[:400]:
+                if self.rng.random() < 0.6:
+                    self.dust.append([x, y, self.rng.uniform(-120, 120), self.rng.uniform(-120, 120), 0.0, c])
         self.cam.kick(0.15 + 0.3 * ten)
         self.audio.hit(self.t, min(1.0, 0.5 + k / 120), "punch", pan, ten)
         self.audio.event(self.t, "slam", 0.6)
@@ -225,40 +248,28 @@ class CrusherJaws(Arena):
         self.particles.burst(cxm, cym, self.colors[self.cur], n=22, speed=600, size=5)
 
     def _spawn_cluster(self, x0, y0, n):
-        """racimo compacto: ocupa los huecos libres más cercanos al punto del aplastón (se ve como una mancha que crece)."""
-        if n <= 0:
-            return
-        r = self.rad[0] if self.rad else self.r_big
-        d = 2 * r * 1.02
-        occ = set()
-        if self.bodies:
-            for x, y in self.positions():
-                occ.add((int(x // d), int(y // d)))
-        cand = []
-        span = int(self.R / d) + 2
-        cx0, cy0 = int(x0 // d), int(y0 // d)
-        for i in range(-span, span + 1):
-            for j in range(-span, span + 1):
-                gx, gy = cx0 + i, cy0 + j
-                x, y = (gx + 0.5) * d, (gy + 0.5) * d
-                if (gx, gy) in occ or math.hypot(x - self.cx, y - self.cy) > self.R - r - 1:
-                    continue
-                cand.append((math.hypot(x - x0, y - y0), x, y))
-        cand.sort()
-        # el racimo sale despedido hacia el centro, un poco corrido hacia la otra pinza (como en la referencia)
-        tx, ty = self.cx - self._last_side * self.g.get("drift_to", 0.3) * self.R, self.cy - self._lift() * self.R
-        # apenas por encima del centro (ref: 62% del tiempo la masa está en la mitad de arriba)
-        damp = -math.log(max(1e-3, self.space.damping))
-        vcx = (tx - x0) * damp
-        vcy = (ty - y0) * damp
-        for dist, x, y in cand[:n]:
-            a = math.atan2(y - y0, x - x0)
-            sp = 40 + 0.8 * dist
-            self.add_ball(x + self.rng.uniform(-0.5, 0.5), y + self.rng.uniform(-0.5, 0.5),
-                          vcx + sp * math.cos(a), vcy + sp * math.sin(a), self.cur)
+        """racimo de color nuevo en los huecos libres más cercanos; sale despacio hacia el centro,
+        un poco corrido hacia la otra pinza (como en la referencia)."""
+        # destino = centro del rombo que va a formar la OTRA pinza (calculado con su geometría)
+        other = next(j for j in self.jaws if j["side"] != self._last_side)
+        up, lo = self._arm_pts(other, math.radians(self.g.get("catch_deg", 88)))
+        poly = [up[0], up[1], up[2], lo[2], lo[1]]
+        tx = sum(q[0] for q in poly) / 5
+        ty = self.cy - self._lift() * self.R
+        k = -math.log(max(1e-3, self.space.damping))      # con este damping llega justo al punto
+        self.spawn_free(x0, y0, n, self.cur, drift=((tx - x0) * k, (ty - y0) * k))
 
     # ---------- dibujo ----------
     def draw_machine(self, c):
+        r = self.rad[0] if self.rad else self.r_big
+        for jaw in self.jaws:
+            if jaw.get("held"):
+                pts, _ = self._held_pos(jaw)
+                for ci in set(p[2] for p in pts):
+                    self._ball_pts(c, [skia.Point(x, y) for x, y, cc in pts if cc == ci], self.colors[ci], r)
+        self._draw_arms(c)
+
+    def _draw_arms(self, c):
         arm = skia.Paint(Color4f=rgb((0.60, 0.61, 0.65)), AntiAlias=True, StrokeWidth=2 * self.arm_w,
                          StrokeCap=skia.Paint.kRound_Cap, StrokeJoin=skia.Paint.kRound_Join, Style=skia.Paint.kStroke_Style)
         hi = skia.Paint(Color4f=rgb((0.78, 0.78, 0.82)), AntiAlias=True, StrokeWidth=self.arm_w * 0.6,

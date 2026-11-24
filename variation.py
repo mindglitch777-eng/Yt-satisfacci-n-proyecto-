@@ -63,8 +63,8 @@ def crusher_jaws_genome(seed):
         "chars": r.sample(["tralalero", "tungtung", "cappuccina"], 3),
         "palette": {"bg": (0.0, 0.0, 0.0), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
         "faces": False,   # bolas lisas: la cara del sprite (ojos blanco/negro) se confunde con el gris de las pinzas
-        "mult": 4, "jaw_cycle": 4.2, "jaw_cap": 215, "packing": 0.72, "r_big": 0.055, "r_min": 4.6, "crowd": 0.35,
-        "gravity": 0, "damping": 0.35, "wall_bounce": 0.5, "ball_bounce": 0.4,
+        "mult": 4, "jaw_cycle": 4.2, "jaw_cap": 10 ** 6, "r_big": 0.055, "r_min": 4.4, "packing": 0.95,
+        "gravity": 0, "damping": 0.35, "wall_bounce": 0.3, "ball_bounce": 0.1,
         "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
         "root": r.choice([130.8, 146.8, 164.8]), "timbre": r.choice(["marimba", "pluck"]),
         "bpm": 120, "round": r.randint(2, 9),
