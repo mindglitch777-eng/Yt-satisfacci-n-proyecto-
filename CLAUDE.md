@@ -98,6 +98,7 @@ Distancia contra los últimos 50 publicados en `history.json`: si un genoma qued
 - Cada formato tiene `reference/formats/<formato>/target.json` (métricas de la referencia) y `MEDIDAS.md` (las leyes del movimiento).
 - **Un formato no está terminado hasta que `python -m tools.motion.compare target.json render.json` da PASA.**
   Si una métrica falla, se corrige el código de movimiento. No se cambia la tolerancia y no se "interpreta".
+- ANTES de tocar crusher_jaws, punch, press o slam: leer `reference/formats/REVISION_4_FORMATOS.md` (qué corregir, en orden). Formato nuevo = primero `spec.json` (plantilla en ese archivo).
 - Top 5 del nicho medidos: `reference/formats/MEDIDAS_TOP5.md` (crusher_jaws, bighammer, two_cones, iris, duel).
 - PUNCH: leer `reference/formats/punch/MEDIDAS.md` antes de tocar `formats/punch.py`
   (sin gravedad, brazos en tijera, golpe que apunta a la bola, ritmo de 0.7 s a 1.3 s, ×2 de lo atrapado, bola que se achica).
