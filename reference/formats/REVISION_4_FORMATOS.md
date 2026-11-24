@@ -83,3 +83,15 @@ El código solo lee la ficha. Si algo no está en la ficha, no se inventa: se mi
 
 Orden de trabajo: ficha → máquina sola (sin bolas) hasta que el ciclo coincida en la hoja → 1 bola y la regla de multiplicar
 → curva de conteo → colores → final → sonido → recién ahí brainrots.
+
+## crusher_jaws: el final medido (respuesta a "¿zoom o multiplicación?")
+Medido en `reference/videos/raw/nexusboxlab_crusher_9.6M.mp4` entre los 19 y los 31 s:
+- **NO es zoom.** Los engranajes no cambian de lugar ni de tamaño (los píxeles grises van de x=33 a x=719 en todo el tramo).
+- **Sigue multiplicando después de que desaparece el aro.** La pantalla cubierta de color pasa del 27% (22.5 s) al 90% (24.5 s) en 2 s.
+  Con el tamaño de bola de ese momento, eso es pasar de ~900 a más de 1.700 bolas visibles, sin contar las que ya salieron del cuadro.
+  A los 23 s la pinza izquierda aplasta con destello: el estallido sale de ahí y se lleva la masa con un color nuevo (rojo/naranja).
+- **Las bolas crecen poco:** ~+25% de radio (r ≈ 10 px a los 10–21 s y ≈ 12–13 px a los 23–28 s, en un video de 720 px).
+  Es una "descompresión": adentro del aro estaban apretadas y sin pared se expanden como masa densa, no como franja suelta.
+- **De 26 a 31 s:** la masa sale de cuadro y la cobertura baja (61% → 31% → 24% → 12% → 10%). Las pinzas siguen trabajando en el vacío:
+  cada aplastón hace un racimo denso nuevo (verde a los 27 s, azul a los 29 s) que se infla en un ARCO que viaja hacia afuera y se va.
+  Termina con pocas bolas sueltas y las dos pinzas.
