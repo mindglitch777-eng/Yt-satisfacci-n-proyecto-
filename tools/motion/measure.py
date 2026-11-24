@@ -113,7 +113,13 @@ def measure(f, t0=0, dur=40, tiktok=False, scale_to=540):
         for side in (dx < 0, dx > 0):
             p = jgray & side
             jaw.append(round(float(1 - np.percentile(d[p], 0.5)), 3) if p.sum() > 25 * (w / 480) ** 2 else 0.0)
-        rows.append({"t": round(t0 + i / FPS, 3), "arms": pk, "ball_px": int(ball.sum()), "jaw": jaw,
+        # brazos AFUERA del aro (banda lateral exterior, sin el engranaje): la pinza sale del círculo al abrirse
+        for sx in (-1, 1):
+            gd = np.hypot(dx - sx, dy)
+            band = (d > 1.06) & (d < 1.7) & (np.abs(dy) < .8) & (sx * dx > .5) & (gd > .14) & (sat < 30) & (g > 95) & (g < 215)
+            jaw.append(1.0 if band.sum() > 40 * (w / 480) ** 2 else 0.0)
+        cov = float(((d < .9) & (sat >= 30) & (g > 25)).sum() / max(1, (d < .9).sum()))   # superficie con bolas (de color)
+        rows.append({"t": round(t0 + i / FPS, 3), "arms": pk, "ball_px": int(ball.sum()), "jaw": jaw, "cov": round(cov, 3),
                      "mach": [int(x) for x in hist],
                      "my": float(dy[ball].mean()) if ball.any() else None,
                      "mx": float(dx[ball].mean()) if ball.any() else None, "r": rr})
@@ -125,10 +131,11 @@ def jaw_summary(rows, R_px, enter=0.2):
     """pinzas laterales: una 'entrada' = la pinza de un lado pasa de reach < enter a reach >= enter.
     Solo vale mientras las pinzas se ven sobre fondo libre: cuando las bolas tapan > 30% del círculo, los tonos
     sombreados de las bolas se confunden con el gris de la pinza → ese tramo se descarta."""
-    full = 0.30 * np.pi * R_px ** 2
-    cut = next((i for i, r in enumerate(rows) if r["ball_px"] > full), len(rows))
+    cut = next((i for i, r in enumerate(rows) if r.get("cov", 0) > 0.30), len(rows))
     rows = rows[:cut]
-    J = np.array([r.get("jaw", [0, 0]) for r in rows], float)
+    JA = np.array([r.get("jaw", [0, 0, 0, 0]) for r in rows], float)
+    out_pct = [round(float(JA[:, k].mean() * 100)) for k in (2, 3)] if JA.shape[1] >= 4 else None
+    J = JA[:, :2]
     t = np.array([r["t"] for r in rows])
     if len(J) < 30:
         return {}
@@ -162,6 +169,7 @@ def jaw_summary(rows, R_px, enter=0.2):
         "jaw_in_s": round(float(np.median([e[3] for e in ent])), 2),
         "jaw_active_s": round(float(np.median([e[4] for e in ent])), 2),
         "jaw_overlap_pct": round(float(both * 100)),
+        "jaw_outside_pct": round(float(np.mean(out_pct))) if out_pct else None,   # % del tiempo con brazos afuera del aro
     }
 
 

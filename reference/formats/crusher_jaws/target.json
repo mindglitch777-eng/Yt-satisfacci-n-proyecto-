@@ -25,7 +25,8 @@
   "jaw_reach": 0.7,
   "jaw_in_s": 0.6,
   "jaw_active_s": 1.8,
-  "jaw_overlap_pct": 0
+  "jaw_overlap_pct": 0,
+  "jaw_outside_pct": 70
  },
- "note": "jaw_*: detector de pinzas laterales (measure.py --machine jaws), medido 0-12.2 s (despu\u00e9s las bolas tapan el fondo). claps/arm_*/aim no aplican a este formato."
+ "note": "jaw_*: detector de pinzas laterales (measure.py --machine jaws), medido 0-12.2 s (despu\u00e9s las bolas tapan el fondo). claps/arm_*/aim no aplican a este formato. jaw_outside_pct: % del tiempo con brazos afuera del aro (banda exterior lateral, sin el engranaje)."
 }

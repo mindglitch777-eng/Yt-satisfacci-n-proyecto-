@@ -1,6 +1,8 @@
-> **AVISO (24-11-2026): la implementación actual NO es fiel.** Ver `../TOP5_LOGICA_REAL.md`: las pinzas son brazos
-> en tijera que giran alrededor del engranaje y atraviesan el aro, las dos a la vez en contrafase. El detector actual
-> solo mira adentro del aro y por eso dio PASA con el movimiento equivocado.
+> **v2 (24-11-2026), fiel a la referencia:** cada pinza = 2 brazos en L que GIRAN sobre el engranaje del aro (tijera),
+> una vuelta cada 4.2 s: entran barriendo, "⊐" → rombo → "T" (aplastón ×4) → salen y quedan plegadas afuera ~2.3 s.
+> Las dos en contrafase → aplastón cada 2.1 s alternado. Brazos = cuerpos rígidos que rotan (no se recrean por frame).
+> Detector: además mide `jaw_outside_pct` (brazos afuera del aro, ref 70%) y corta cuando las bolas cubren >30% del aro.
+> La v1 (pinzas que se estiraban desde adentro) daba PASA porque el detector solo miraba adentro del aro.
 
 # SPEC — CRUSHER JAWS (fuente: reference/videos/raw/nexusboxlab_crusher_9.6M.mp4)
 

@@ -27,6 +27,7 @@ CHECKS_JAWS = [
     ("jaw_in_s", .35, "velocidad de entrada de la pinza"),
     ("jaw_active_s", .25, "cuánto tiempo está adentro cada pinza"),
     ("jaw_overlap_pct", ("abs", 10), "las dos pinzas casi nunca están adentro a la vez"),
+    ("jaw_outside_pct", ("abs", 15), "los brazos salen AFUERA del aro al abrirse (giran alrededor del engranaje)"),
     ("ball_r_over_R_first", .3, "tamaño de la primera bola"),
     ("ball_r_over_R_last", .6, "tamaño de bola al final"),
     ("mass_in_top_half_pct", ("abs", 15), "gravedad efectiva (sin gravedad ≈ 50-65%)"),
