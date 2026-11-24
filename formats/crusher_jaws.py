@@ -172,6 +172,7 @@ class CrusherJaws(Arena):
         self.space.remove(*self.ring_segs)
         self.ring_segs = []
         self.spill_r0 = self.rad[0] if self.rad else self.r_min
+        self.exempt = {}
         self.audio.set_climax(self.t)
         self.audio.event(self.t - 0.3, "riser", 1.0)
         self.audio.event(self.t, "boom", 0.9)
@@ -185,16 +186,29 @@ class CrusherJaws(Arena):
             return
         ds = self.t - self.spill_at
         if self.bodies and ds < 2.0:                 # sin el aro, las bolas se aflojan y se ven más grandes (ref)
-            r = self.spill_r0 * (1 + 0.35 * ds / 2.0)
+            r = self.spill_r0 * (1 + 0.25 * ds / 2.0)        # ref: ~+25% de radio
             for b in self.bodies:
                 for sh in b.shapes:
                     sh.unsafe_set_radius(r)
             self.rad = [r] * len(self.bodies)
         # expansión de la masa: campo de velocidad uniforme desde el centro (no se desarma)
-        rate = 0.30 if ds < 2.0 else 0.07          # después de la descompresión se va yendo, densa
+        # ref (cobertura de pantalla): 90% 24.5 s · 87% 25.5 · 61% 26.5 · 31% 27.5 · 24% 28.5 · 12% 29.5 · 10% 30.5
+        # 1) descompresión 2 s  2) casi quieta  3) SALIDA RADIAL: todo se aleja del centro a la misma velocidad
+        #    (el centro se vacía primero, anillo que se agranda), arranca lento y acelera (grueso entre 25.5 y 27.5 s)
+        rate = 0.30 if ds < 2.0 else 0.04
+        te = self.t - self.g.get("t_exit", 25.3)
+        v_out = 0.0 if te <= 0 else min(320.0, 320.0 * (te / 2.0) ** 2)
         if self.bodies:
             for b in self.bodies:
-                b.velocity = ((b.position.x - self.cx) * rate, (b.position.y - self.cy) * rate)
+                if self.exempt.get(id(b), 0) > self.t:
+                    continue                         # racimo recién nacido: se mueve solo
+                dx, dy = b.position.x - self.cx, b.position.y - self.cy
+                d = math.hypot(dx, dy) or 1.0
+                vo = v_out * min(1.0, d / (0.7 * self.R)) ** 2   # las del medio se quedan: las pinzas las aplastan
+                # se acerca a la velocidad objetivo sin pisar los choques: la masa sigue apretada (no se vuelve arena)
+                tx, ty = dx * rate + dx / d * vo, dy * rate + dy / d * vo
+                v = b.velocity
+                b.velocity = (v.x + (tx - v.x) * 0.12, v.y + (ty - v.y) * 0.12)
             gt = getattr(self, "grow_target", 0)
             if ds < 2.0 and len(self.bodies) < gt and self.frame % 2 == 0:
                 rm = self.R * math.exp(rate * ds)
@@ -219,8 +233,8 @@ class CrusherJaws(Arena):
         if self.frame % 3 == 0 and self.bodies:
             P = self.positions()
             self.remove_balls(np.nonzero((P[:, 0] < -60) | (P[:, 0] > W + 60) | (P[:, 1] < -60) | (P[:, 1] > H + 60))[0])
-        if self.end_at is None and (ds > 8.0 or (ds > 4.0 and len(self.bodies) < 3)):
-            self.end_at = self.t                     # vacío: empalma con el frame 1
+        if self.end_at is None and self.t >= self.g.get("t_end", 31.0):
+            self.end_at = self.t                     # ref: termina a los 31.5 s (pocas bolas sueltas + pinzas)
 
     def machine_step(self):
         self._update_phis()
@@ -320,7 +334,7 @@ class CrusherJaws(Arena):
         if self.spill_at is not None:
             n_new = k * self.mult                    # sin aro SIGUE multiplicando
             if first_spill:                          # ref medido: ~900 → >1.700 visibles en 2 s (27% → 90% de pantalla)
-                n_new = max(n_new, len(self.bodies))
+                n_new = max(n_new, int(self.g.get("spill_grow", 1.7) * len(self.bodies)))
         elif len(self.bodies) + k >= self.cap_full * 0.97:
             n_new = k                                # guerra de colores: la mancha cambia de color (no crece)
         else:
@@ -353,7 +367,10 @@ class CrusherJaws(Arena):
             self.wave = (x0, y0, self.t, self.cur)
             return
         else:
-            self._spawn_cluster(x0, y0, n, drift=False, screen=True)
+            # racimo denso que cruza hacia la otra pinza (como antes del final) y recién después sigue a la masa
+            self._spawn_cluster(x0, y0, n, drift=True, screen=True)
+            for b in self.bodies[before:]:
+                self.exempt[id(b)] = self.t + 2.3
         damp = -math.log(max(1e-3, self.space.damping))
         out = 0.9 * damp
         for i, b in enumerate(self.bodies):
@@ -365,7 +382,7 @@ class CrusherJaws(Arena):
             if not first:
                 vx += ox / on * 260
                 vy += oy / on * 260
-            b.velocity = (b.velocity.x + vx, b.velocity.y + vy)
+            b.velocity = (b.velocity.x + vx * 0, b.velocity.y + vy * 0)
         if first:
             self.wave = (x0, y0, self.t, self.cur)
         for i in range(before, len(self.bodies)):
