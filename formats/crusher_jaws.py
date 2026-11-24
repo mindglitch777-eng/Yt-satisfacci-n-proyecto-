@@ -16,7 +16,7 @@ import pymunk
 import skia
 
 from formats.arena import Arena, TAU
-from engine.gfx import rgb
+from engine.gfx import rgb, W, H
 
 TXT = {
     "en": {"t1": "EVERY CRUSHED BALL", "t2": "BECOMES 4", "balls": "BALLS", "full": "FULL!",
@@ -59,11 +59,31 @@ def phi_at(p):
     return math.radians(float(_PHI[int(p * len(_PHI)) % len(_PHI)]))
 
 
+SPEC_PATH = "reference/formats/crusher_jaws/spec.json"
+
+
+def load_spec():
+    import json, os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(here, SPEC_PATH)) as f:
+        return json.load(f)
+
+
 class CrusherJaws(Arena):
     TXT = TXT
 
     def setup_machine(self):
         g = self.g
+        sp = load_spec()
+        self.spec = sp
+        self.curve = np.array(sp["curva_conteo"], float)          # el Pacer sigue ESTA tabla
+        self.cap_full = int(sp["bolas"]["capacidad_full"])
+        self.capacity = self.cap_full
+        self.t_spill = float(g.get("t_spill", 23.0))               # aro desaparece (ficha: final)
+        self.spill_at = None
+        # tamaño de la ficha: grandes hasta que no entran (~400), después se achican apenas
+        self.r_big = self.r0 = sp["bolas"]["r_inicial_R"] * self.R
+        self.r_min = sp["bolas"]["r_final_R"] * self.R
         self.cycle = g.get("jaw_cycle", 4.2)        # una vuelta completa por pinza (aplastón cada 2.1 s, alternado)
         self.mult = g.get("mult", 4)
         self.arm_w = 9
@@ -114,6 +134,16 @@ class CrusherJaws(Arena):
 
     def _drive_arms(self, final=False):
         for jaw in self.jaws:
+            # los brazos empujan solo mientras entran y cierran (φ > 0); al salir pasan por detrás del racimo
+            # empujan mientras entran barriendo; desde que el rombo se forma (55°) lo de adentro queda encerrado
+            # (no se escurre) hasta la "T"; al salir pasan por detrás del racimo
+            solid = jaw["phi"] > math.radians(80)
+            if solid != jaw.get("solid", True):
+                jaw["solid"] = solid
+                f = pymunk.ShapeFilter() if solid else pymunk.ShapeFilter(mask=0)
+                for _, _, segs in jaw["arms"]:
+                    for sh in segs:
+                        sh.filter = f
             for b, k, _ in jaw["arms"]:
                 if final:
                     b.angle = k * jaw["phi"]
@@ -130,6 +160,45 @@ class CrusherJaws(Arena):
             jaw["p"] = p
 
     # ---------- ciclo ----------
+    def r_for(self, n):
+        if self.spill_at is not None:
+            return 1e9                                # durante el derrame el tamaño lo maneja update()
+        return super().r_for(n)
+
+    def _spill(self):
+        """final de la referencia: el aro desaparece y la masa se derrama fuera del círculo."""
+        self.spill_at = self.t
+        self.ring_on = False
+        self.space.remove(*self.ring_segs)
+        self.ring_segs = []
+        self.spill_r0 = self.rad[0] if self.rad else self.r_min
+        for b in self.bodies:
+            dx, dy = b.position.x - self.cx, b.position.y - self.cy
+            b.velocity = (b.velocity.x + dx * 0.04, b.velocity.y + dy * 0.04)   # se derrama despacio, en masa
+        self.audio.set_climax(self.t)
+        self.audio.event(self.t - 0.3, "riser", 1.0)
+        self.audio.event(self.t, "boom", 0.9)
+        self.cam.kick(0.5)
+
+    def update(self):
+        super().update()
+        if self.spill_at is None:
+            if self.t >= self.t_spill and len(self.bodies) >= 0.8 * self.cap_full:
+                self._spill()
+            return
+        ds = self.t - self.spill_at
+        if self.bodies and ds < 1.5:                 # sin el aro, las bolas se aflojan y se ven más grandes (ref)
+            r = self.spill_r0 * (1 + 0.25 * ds / 1.5)
+            for b in self.bodies:
+                for sh in b.shapes:
+                    sh.unsafe_set_radius(r)
+            self.rad = [r] * len(self.bodies)
+        if self.frame % 3 == 0 and self.bodies:
+            P = self.positions()
+            self.remove_balls(np.nonzero((P[:, 0] < -60) | (P[:, 0] > W + 60) | (P[:, 1] < -60) | (P[:, 1] > H + 60))[0])
+        if self.end_at is None and (ds > 8.0 or (ds > 4.0 and len(self.bodies) < 3)):
+            self.end_at = self.t                     # vacío: empalma con el frame 1
+
     def machine_step(self):
         self._update_phis()
         for jaw in self.jaws:
@@ -151,6 +220,8 @@ class CrusherJaws(Arena):
         P = self.positions()
         r = self.rad[0]
         for jaw in self.jaws:
+            if not jaw.get("solid", True):
+                continue
             for arm in self._arm_pts(jaw):
                 for a, c in zip(arm, arm[1:]):
                     ax, ay = a; vx, vy = c[0] - ax, c[1] - ay
@@ -170,7 +241,7 @@ class CrusherJaws(Arena):
 
     def _inside_jaw(self, P, jaw):
         """bolas dentro del rombo formado por los dos brazos (polígono engranaje-codo-punta-punta-codo)."""
-        up, lo = self._arm_pts(jaw, math.radians(35))
+        up, lo = self._arm_pts(jaw, math.radians(80))   # lo que encerró el rombo al formarse
         poly = [up[0], up[1], up[2], lo[2], lo[1]]
         path = skia.Path()
         path.moveTo(*poly[0])
@@ -200,7 +271,12 @@ class CrusherJaws(Arena):
         if self.bodies:
             P = self.positions()
             ins = np.nonzero(self._inside_jaw(P, mouth))[0]
-            cap = self.g.get("jaw_cap", 10 ** 9)
+            # Pacer: atrapa lo necesario para seguir la curva de la referencia (×4 de lo atrapado)
+            n = len(self.bodies)
+            want = float(np.interp(self.t + 2.1, self.curve[:, 0], self.curve[:, 1]))
+            cap = max(1, int(math.ceil((want - n) / (self.mult - 1))))
+            if n >= self.cap_full * 0.97 or self.spill_at is not None:
+                cap = 10 ** 9                        # guerra de colores / vaciado: se lleva toda la mancha
             if len(ins) > cap:
                 ins = ins[np.argsort(np.abs(P[ins, 1] - self.cy))][:cap]
             k = len(ins)
@@ -213,18 +289,48 @@ class CrusherJaws(Arena):
         self.audio.event(self.t, "slam", 0.6)
         if k == 0:
             return
-        n_new = min(k * self.mult, self.capacity - len(self.bodies))
+        if self.spill_at is not None:
+            n_new = 0                                # final: las pinzas vacían, ya no nace nada
+        elif len(self.bodies) + k >= self.cap_full * 0.97:
+            n_new = k                                # guerra de colores: la mancha cambia de color (no crece)
+        else:
+            n_new = min(k * self.mult, self.cap_full - len(self.bodies))
         self.gen += 1
         self.cur = self.gen % len(self.colors)
-        self._spawn_cluster(cxm, cym, n_new)
+        if len(self.bodies) >= self.g.get("packed_n", 380) or self.spill_at is not None:
+            self._paint_territory(cxm, cym, k, n_new)
+        else:
+            self._spawn_cluster(cxm, cym, n_new)
         self.flashes.append([cxm, cym, 0.0, self.colors[self.cur]])
         self.audio.hit(self.t + 0.003, min(1.0, 0.5 + k / 120), "squish", pan, ten)
         for i in range(int(min(9, 2 + 1.6 * math.log2(1 + n_new)))):
             self.audio.event(self.t + 0.05 + i * 0.03, "pop", 0.9 + 0.5 * ten + 0.07 * i)
-        self.pops.append([cxm, cym - 70, f"×{self.mult}" if k < 25 else f"+{n_new}", 0.0, self.colors[self.cur]])
+        if n_new > k:
+            self.pops.append([cxm, cym - 70, f"×{self.mult}" if k < 25 else f"+{n_new - k}", 0.0, self.colors[self.cur]])
         self.particles.burst(cxm, cym, self.colors[self.cur], n=22, speed=600, size=5)
 
-    def _spawn_cluster(self, x0, y0, n):
+    def _paint_territory(self, x0, y0, k, n_new):
+        """círculo lleno: el aplastón convierte en el color nuevo una mancha compacta (×4 de lo aplastado) pegada a la
+        pinza, y las bolitas extra llenan huecos con el color de su vecina → territorios sólidos, no confeti."""
+        if n_new <= 0:
+            return
+        before = len(self.bodies)
+        self._spawn_cluster(x0, y0, n_new, drift=False)            # en los huecos más cercanos, sin deslizarse
+        P = self.positions()
+        col = np.array(self.col)
+        d2 = (P[:, 0] - x0) ** 2 + (P[:, 1] - y0) ** 2
+        patch = np.argsort(d2)[: max(n_new, self.mult * k)]
+        new_idx = np.arange(before, len(self.bodies))
+        far_new = np.setdiff1d(new_idx, patch)
+        old = np.setdiff1d(np.arange(before), patch)
+        if len(far_new) and len(old):                              # las que cayeron lejos toman el color de su vecina
+            for i in far_new:
+                j = old[np.argmin((P[old, 0] - P[i, 0]) ** 2 + (P[old, 1] - P[i, 1]) ** 2)]
+                self.col[i] = int(col[j]) if j < len(col) else self.col[j]
+        for i in patch:
+            self.col[i] = self.cur
+
+    def _spawn_cluster(self, x0, y0, n, drift=True):
         """racimo compacto: ocupa los huecos libres más cercanos al punto del aplastón (se ve como una mancha que crece)."""
         if n <= 0:
             return
@@ -245,17 +351,16 @@ class CrusherJaws(Arena):
                     continue
                 cand.append((math.hypot(x - x0, y - y0), x, y))
         cand.sort()
-        # el racimo sale despedido hacia el centro, un poco corrido hacia la otra pinza (como en la referencia)
-        tx, ty = self.cx - self._last_side * self.g.get("drift_to", 0.3) * self.R, self.cy - self._lift() * self.R
-        # apenas por encima del centro (ref: 62% del tiempo la masa está en la mitad de arriba)
+        # racimo compacto (los huecos libres más cercanos) que se desliza JUNTO y despacio hacia el rombo de la otra
+        # pinza: todas con la MISMA velocidad (no se desarma), y el damping lo frena justo ahí (~1 s)
+        other = next(j for j in self.jaws if j["side"] != self._last_side)
+        up, lo = self._arm_pts(other, math.radians(55))
+        tx = sum(q[0] for q in (up[0], up[1], up[2], lo[2], lo[1])) / 5
+        ty = self.cy - self._lift() * self.R
         damp = -math.log(max(1e-3, self.space.damping))
-        vcx = (tx - x0) * damp
-        vcy = (ty - y0) * damp
+        vx, vy = ((tx - x0) * damp, (ty - y0) * damp) if drift else (0.0, 0.0)
         for dist, x, y in cand[:n]:
-            a = math.atan2(y - y0, x - x0)
-            sp = 40 + 0.8 * dist
-            self.add_ball(x + self.rng.uniform(-0.5, 0.5), y + self.rng.uniform(-0.5, 0.5),
-                          vcx + sp * math.cos(a), vcy + sp * math.sin(a), self.cur)
+            self.add_ball(x, y, vx, vy, self.cur)
 
     # ---------- dibujo ----------
     def draw_machine(self, c):

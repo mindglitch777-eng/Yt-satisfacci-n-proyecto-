@@ -1,0 +1,26 @@
+{
+  "referencia": "reference/videos/raw/nexusboxlab_crusher_9.6M.mp4",
+  "fuente_de_cada_dato": "hojas a 5 fps (reference/sheets/top5/), cuadros sueltos a 6/8/10/12/14/18/22/24/26/28/30 s, measure --machine jaws",
+  "arena": {"forma": "circulo", "R_px_1080": 455, "aro": "blanco fino; desaparece a los ~23 s"},
+  "gravedad": 0,
+  "maquina": {
+    "tipo": "pinzas_borde",
+    "piezas": [
+      {"pivote": [-1.0, 0.0], "brazos": 2, "brazo_R": 0.42, "antebrazo_R": 0.52, "grosor_R": 0.04},
+      {"pivote": [1.0, 0.0], "brazos": 2, "brazo_R": 0.42, "antebrazo_R": 0.52, "grosor_R": 0.04}
+    ],
+    "movimiento": {"periodo_s": 4.2, "fase_entre_piezas": 0.5, "aplaston_cada_s": 2.1,
+                   "curva": "los dos brazos giran en tijera sobre el engranaje y atraviesan el aro: afuera plegados ~2.3 s, adentro ⊐ → rombo → T (aplastón) en ~1.9 s"},
+    "dibujo": "engranaje gris dentado sobre el aro, brazos grises en L"
+  },
+  "bolas": {"r_inicial_R": 0.044, "r_final_R": 0.028, "achicar": "solo cuando ya no entran (después de ~400)",
+            "capacidad_full": 1000, "colores": "uno por generación: territorios sólidos"},
+  "multiplica": {"regla": "×4 por bola aplastada", "texto_popup": "ninguno en la referencia"},
+  "salen": "racimo compacto pegado que deriva lento y junto hacia la otra pinza (~1 s, cruza el círculo sin desarmarse)",
+  "curva_conteo": [[0, 1], [2, 4], [4, 13], [6, 42], [8, 80], [10, 200], [12, 380], [14, 480], [18, 750], [22, 1000]],
+  "curva_conteo_nota": "la referencia no tiene contador: conteo a ojo en cuadros sueltos (±20%)",
+  "despues_de_lleno": "guerra de colores: cada aplastón convierte una mancha grande en el color nuevo (12 → 23 s)",
+  "final": "a los ~23 s el aro desaparece y la masa se derrama fuera del círculo; las pinzas siguen aplastando sin que nazcan nuevas y la vacían (~30 s); empalma con el frame 1",
+  "duracion_s": 31,
+  "texto_pantalla": []
+}

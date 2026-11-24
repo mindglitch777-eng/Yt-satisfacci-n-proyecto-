@@ -56,6 +56,7 @@ class Arena(Sim):
         self.r_min = g.get("r_min", 4.6)
         self.capacity = int(g.get("packing", 0.78) * (self.R / self.r_min) ** 2)
         self.broken_at, self.frags = None, []
+        self.ring_on = True                    # un formato puede sacar el aro (derrame) sin "romperlo"
         self.pops, self.flashes, self.dust = [], [], []
         self.round = g.get("round", 2)
         self.n_max = 0
@@ -136,7 +137,7 @@ class Arena(Sim):
         if self.frame % 6 == 0:
             self.audio.set_tension(self.t, self.tension())
         self.n_max = max(self.n_max, len(self.bodies))
-        if self.done_at is None and len(self.bodies) >= self.capacity:
+        if self.g.get("climax_by_count", True) and self.done_at is None and len(self.bodies) >= self.capacity:
             self.climax()
         if self.done_at is not None and self.broken_at is None and self.t > self.done_at + 1.3:
             self.break_ring()
@@ -150,7 +151,7 @@ class Arena(Sim):
                 self.end_at = self.t
 
     def contain(self):
-        if not self.bodies or self.broken_at is not None:
+        if not self.bodies or self.broken_at is not None or not self.ring_on:
             return
         P = self.positions()
         rad = np.hypot(P[:, 0] - self.cx, P[:, 1] - self.cy)
@@ -205,7 +206,7 @@ class Arena(Sim):
     def draw_world(self, c):
         ring = skia.Paint(Color4f=rgb((0.95, 0.95, 0.97), 1.0), AntiAlias=True, Style=skia.Paint.kStroke_Style, StrokeWidth=8)
         rr6 = self.R + 6
-        if self.broken_at is None:
+        if self.broken_at is None and self.ring_on:
             c.drawCircle(self.cx, self.cy, rr6, ring)
             frac = min(1.0, len(self.bodies) / self.capacity)
             arc = skia.Paint(Color4f=rgb(self.pal["accent"]), AntiAlias=True, Style=skia.Paint.kStroke_Style,
