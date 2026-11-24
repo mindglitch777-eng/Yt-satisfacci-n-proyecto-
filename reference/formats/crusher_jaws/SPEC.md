@@ -1,3 +1,9 @@
+> **CERRADO (25-11-2026).** Final medido: el aplastón izquierdo (~22 s) saca el aro, la masa se descomprime y se completa
+> hasta la cobertura de la referencia (área real de las bolitas, ±10 puntos en 24.5–30.5 s; semilla 1 todos OK,
+> semilla 2 un segundo a 11). Las nuevas toman el color de su vecina; solo la ola del aplastón pinta color nuevo.
+> Salida radial desde 24.8 s, racimos de las pinzas que cruzan y se van, corte a 31.5 s.
+> Nota: la medición por píxeles saturados no sirve para comparar cobertura con la referencia (no cuenta el borde oscuro de nuestras bolitas).
+
 > **v2 (24-11-2026), fiel a la referencia:** cada pinza = 2 brazos en L que GIRAN sobre el engranaje del aro (tijera),
 > una vuelta cada 4.2 s: entran barriendo, "⊐" → rombo → "T" (aplastón ×4) → salen y quedan plegadas afuera ~2.3 s.
 > Las dos en contrafase → aplastón cada 2.1 s alternado. Brazos = cuerpos rígidos que rotan (no se recrean por frame).

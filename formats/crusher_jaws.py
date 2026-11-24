@@ -195,9 +195,9 @@ class CrusherJaws(Arena):
         # ref (cobertura de pantalla): 90% 24.5 s · 87% 25.5 · 61% 26.5 · 31% 27.5 · 24% 28.5 · 12% 29.5 · 10% 30.5
         # 1) descompresión 2 s  2) casi quieta  3) SALIDA RADIAL: todo se aleja del centro a la misma velocidad
         #    (el centro se vacía primero, anillo que se agranda), arranca lento y acelera (grueso entre 25.5 y 27.5 s)
-        rate = 0.30 if ds < 2.0 else 0.04
-        te = self.t - self.g.get("t_exit", 25.3)
-        v_out = 0.0 if te <= 0 else min(320.0, 320.0 * (te / 2.0) ** 2)
+        rate = 0.42 if ds < 2.0 else 0.04
+        te = self.t - self.g.get("t_exit", 24.8)
+        v_out = 0.0 if te <= 0 else min(480.0, 480.0 * (te / 2.0) ** 2)
         if self.bodies:
             for b in self.bodies:
                 if self.exempt.get(id(b), 0) > self.t:
@@ -209,17 +209,8 @@ class CrusherJaws(Arena):
                 tx, ty = dx * rate + dx / d * vo, dy * rate + dy / d * vo
                 v = b.velocity
                 b.velocity = (v.x + (tx - v.x) * 0.12, v.y + (ty - v.y) * 0.12)
-            gt = getattr(self, "grow_target", 0)
-            if ds < 2.0 and len(self.bodies) < gt and self.frame % 2 == 0:
-                rm = self.R * math.exp(rate * ds)
-                want = int(gt - (gt - len(self.bodies)) * (1 - min(1.0, ds / 1.8)))
-                n = want - len(self.bodies)
-                if n > 0:
-                    before = len(self.bodies)
-                    self._spawn_cluster(self.cx, self.cy, n, drift=False, screen=True, within=rm)
-                    w = getattr(self, "wave", None)
-                    for i in range(before, len(self.bodies)):
-                        self.col[i] = w[3] if w else self.cur
+            if self.frame % 2 == 0:
+                self._fill_to_coverage()
         # la ola de color nuevo avanza por la masa desde el aplastón
         w = getattr(self, "wave", None)
         if w and self.bodies:
@@ -354,6 +345,52 @@ class CrusherJaws(Arena):
         if n_new > k:
             self.pops.append([cxm, cym - 70, f"×{self.mult}" if k < 25 else f"+{n_new - k}", 0.0, self.colors[self.cur]])
         self.particles.burst(cxm, cym, self.colors[self.cur], n=22, speed=600, size=5)
+
+    # cobertura de pantalla medida en la referencia después de que desaparece el aro (s, fracción)
+    COVER = [(22.5, 0.27), (24.5, 0.91), (25.5, 0.87), (26.5, 0.64), (27.5, 0.33), (28.5, 0.25), (29.5, 0.13), (30.5, 0.11)]
+
+    def _fill_to_coverage(self):
+        """nacen las bolitas que faltan para tapar el % de pantalla de la referencia en este segundo,
+        en huecos DENTRO de la masa (nunca encima de otra) y del color de su vecina más cercana."""
+        if not self.bodies:
+            return
+        ts, cs = zip(*self.COVER)
+        # cobertura = área real de las bolitas en pantalla (la medición por píxeles no cuenta el borde oscuro)
+        target = min(0.95, float(np.interp(self.t, ts, cs)) * self.g.get("cover_k", 1.0))
+        r = self.rad[0]
+        P = self.positions()
+        on = (P[:, 0] > -r) & (P[:, 0] < W + r) & (P[:, 1] > -r) & (P[:, 1] < H + r)
+        a1 = math.pi * r * r
+        missing = int((target * W * H - on.sum() * a1) / a1)
+        if missing <= 0:
+            return
+        d = 2 * r * 1.02
+        occ = {}
+        for i, (x, y) in enumerate(P):
+            occ[(int(x // d), int(y // d))] = i
+        cand = []
+        for (gx, gy), i in occ.items():
+            for ox, oy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                c = (gx + ox, gy + oy)
+                if c in occ:
+                    continue
+                x, y = (c[0] + 0.5) * d, (c[1] + 0.5) * d
+                if not (r < x < W - r and r < y < H - r):
+                    continue
+                nb = sum((c[0] + u, c[1] + v) in occ for u in (-1, 0, 1) for v in (-1, 0, 1))
+                cand.append((-nb, self.rng.random(), c, i))
+        cand.sort()                                   # primero los huecos más rodeados (adentro de la masa)
+        seen = set()
+        n = 0
+        for nb, _, c, i in cand:
+            if n >= min(missing, 400) or -nb < 3:
+                break
+            if c in seen:
+                continue
+            seen.add(c)
+            v = self.bodies[i].velocity
+            self.add_ball((c[0] + 0.5) * d, (c[1] + 0.5) * d, v.x, v.y, self.col[i])
+            n += 1
 
     def _burst(self, x0, y0, n, first):
         """sin aro: el racimo nuevo se infla y viaja hacia afuera en arco (descompresión, masa densa)."""
