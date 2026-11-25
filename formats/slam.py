@@ -66,6 +66,11 @@ class Slam(Arena):
         self.mid = (self.ang_R + self.ang_L) / 2
         self.amp = (self.ang_L - self.ang_R) / 2
         self.period = g.get("period", 3.0)
+        import json, os
+        sp = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                         "reference/formats/slam/spec.json")))
+        self.curve = np.array(sp["curva_conteo"], float)
+        self.capacity = int(sp["bolas"]["capacidad_full"])
         self.phase0 = -math.pi / 2                   # arranca del lado derecho
         self.ang = self._angle(0.0)
         self.hammer.angle = self.ang
@@ -122,7 +127,7 @@ class Slam(Arena):
                 lo, hi = self.ang + self.hw / 2, self.anvL[0]
             r = self.rad[0]
             pad = r / np.maximum(rad, 1)
-            inz = ((phi > lo - pad) & (phi < hi + pad) & (rad > self.r_in - 2 * r))
+            inz = ((phi > lo - pad - math.radians(4)) & (phi < hi + pad + math.radians(4)) & (rad > self.r_in - 6 * r))
             idx = np.nonzero(inz)[0]
             # lo que ya no entra en la rendija se aplasta (cuenta para el golpe)
             width = max(0.0, hi - lo)
@@ -132,6 +137,8 @@ class Slam(Arena):
             gap_cap = max(1, int(0.5 * math.radians(self.g.get("gap_deg", 6.0)) * (self.r_out ** 2 - self.r_in ** 2)
                                  * 0.8 / (math.pi * r * r)))
             room = gap_cap - self.crushed[side]
+            if gap <= math.radians(2.0) and room > 0 and len(idx):
+                fits = 0                                     # el golpe: todo lo que quedó en la rendija se aplasta
             if len(idx) > fits and room > 0:
                 gone = idx[np.argsort(-rad[idx])][: min(len(idx) - fits, room)] if fits else idx[:room]
                 self.crush_fx(gone, P)
@@ -156,7 +163,10 @@ class Slam(Arena):
         self.audio.event(self.t, "slam", 0.8)
         if k == 0:
             return
-        n_new = min(k * self.mult, self.capacity + 40 - len(self.bodies))
+        want = float(np.interp(self.t + self.period / 2, self.curve[:, 0], self.curve[:, 1]))
+        # lo aplastado ya salió de la física: renace ×2 (k·2), o menos si el contador va adelantado (nunca menos de k)
+        n_new = max(k, min(k * self.mult, int(want) - len(self.bodies)))
+        n_new = min(n_new, self.capacity - len(self.bodies))
         self.cur = (self.cur + 1) % len(self.colors)
         r = self.rad[0] if self.rad else self.r_big      # se achican de a poco (formats/sizing.py)
         # chorro: sale por la rendija (entre martillo y yunque) hacia el centro y para arriba
@@ -170,12 +180,13 @@ class Slam(Arena):
             vx = (jx * math.cos(sx) - jy * math.sin(sx)) * sp
             vy = (jy * math.cos(sx) + jx * math.sin(sx)) * sp
             back = self.rng.uniform(0, 3.5) * r * (1 + i // 40)
-            self.add_ball(ox - jx * back + self.rng.uniform(-r, r), oy - jy * back + self.rng.uniform(-r, r), vx, vy, self.cur)
+            self.add_ball(ox - jx * back + self.rng.uniform(-r, r), oy - jy * back + self.rng.uniform(-r, r), vx, vy, self.rng.randrange(len(self.colors)))   # confeti
         self.particles.burst(hx, hy, self.colors[self.cur], n=20, speed=650, size=5)
         self.audio.hit(self.t + 0.003, min(1.0, 0.5 + k / 150), "squish", pan, ten)
         for i in range(int(min(9, 2 + 1.6 * math.log2(1 + n_new)))):
             self.audio.event(self.t + 0.05 + i * 0.03, "pop", 0.9 + 0.5 * ten + 0.07 * i)
-        self.pops.append([ox + jx * 120, oy + jy * 120, f"×{self.mult}" if k < 25 else f"+{n_new}", 0.0])
+        if n_new > k:
+            self.pops.append([ox + jx * 120, oy + jy * 120, f"×{self.mult}" if n_new == k * self.mult and k < 25 else f"+{n_new - k}", 0.0])
 
     # ---------- dibujo ----------
     def draw_machine(self, c):
