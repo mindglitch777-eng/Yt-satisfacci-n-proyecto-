@@ -1,0 +1,100 @@
+{
+ "referencia": "reference/videos/raw/neonbounce_bighammer_6.6M.mp4 (y neonbounce_hammer_fill.mp4: es el MISMO formato)",
+ "fuente_de_cada_dato": "contador 'N BALLS' de las dos grabaciones cada 4 s + REVISION_4_FORMATOS (slam)",
+ "arena": {
+  "forma": "circulo",
+  "R_px_1080": 455
+ },
+ "gravedad": 1500,
+ "maquina": {
+  "tipo": "pendulo",
+  "piezas": "cabeza trapezoidal central colgada del pivote + 2 bloques fijos a los costados",
+  "movimiento": {
+   "periodo_s": 1.2,
+   "amplitud_deg": 20
+  }
+ },
+ "bolas": {
+  "r_inicial_R": 0.014,
+  "r_final_R": 0.014,
+  "fijo": true,
+  "capacidad_full": 2048,
+  "colores": "confeti: cada bola de un color"
+ },
+ "multiplica": {
+  "regla": "×2 de lo apretado entre la cabeza y el bloque",
+  "texto_popup": "×2 / +N"
+ },
+ "salen": "chorro hacia arriba por la rendija",
+ "curva_conteo": [
+  [
+   0,
+   2
+  ],
+  [
+   4,
+   8
+  ],
+  [
+   8,
+   16
+  ],
+  [
+   12,
+   61
+  ],
+  [
+   16,
+   152
+  ],
+  [
+   20,
+   289
+  ],
+  [
+   24,
+   484
+  ],
+  [
+   28,
+   634
+  ],
+  [
+   32,
+   794
+  ],
+  [
+   36,
+   1025
+  ],
+  [
+   40,
+   1199
+  ],
+  [
+   44,
+   1384
+  ],
+  [
+   48,
+   1623
+  ],
+  [
+   52,
+   1799
+  ],
+  [
+   57,
+   2048
+  ]
+ ],
+ "final": "FULL! con exactamente 2.048 = 2^11",
+ "texto_pantalla": [
+  "N BALLS"
+ ],
+ "estado": "CERRADO 25-11-2026 (2 rondas): ×2, confeti chico fijo, péndulo ±20° cada 1.2 s, curva del contador (16/95/412/755/1141/1554 a 8/16/24/32/40/48 s), FULL con 2.048 a los 56.9 s. -14 LUFS.",
+ "pendiente": [
+  "los bloques son más grandes y altos que en la referencia: parte de la pila queda arriba de los bloques en vez de abajo",
+  "bighammer (#5 del plan) es este mismo formato: misma máquina y mismo canal en las dos grabaciones"
+ ]
+}

@@ -50,8 +50,9 @@ def slam_genome(seed):
         "seed": seed, "format": "slam", "lang": "en",
         "chars": r.sample(["tralalero", "tungtung", "cappuccina"], 3),
         "palette": {"bg": (0.015, 0.02, 0.05), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
-        "mult": 4, "r_big": 0.042, "r_min": 5.5, "crowd": 0.25, "gap_deg": 11.0, "gravity": 1500, "damping": 0.9,
-        "wall_bounce": 0.3, "ball_bounce": 0.25, "period": 3.0,
+        "mult": 2, "r_big": 0.014, "r_min": 6.4, "gap_deg": 11.0, "gravity": 1500, "damping": 0.9,
+        "wall_bounce": 0.3, "ball_bounce": 0.25, "period": 1.2,          # spec.json: ×2, FULL 2048, confeti fijo
+        "anvR0": -1, "anvR1": 47, "anvL0": 133, "anvL1": 181, "head_w": 46,   # péndulo ±20°
         "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
         "root": r.choice([130.8, 146.8, 164.8]), "timbre": r.choice(["marimba", "pluck"]),
         "bpm": 120, "round": r.randint(2, 9),

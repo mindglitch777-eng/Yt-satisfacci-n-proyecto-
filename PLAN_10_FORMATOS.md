@@ -8,9 +8,9 @@ El refinamiento fino viene DESPUÉS, con datos reales de YouTube. Este plan est�
 |---|---|---|---|---|
 | 1 | crusher_jaws | CERRADO | — | raw/nexusboxlab_crusher_9.6M.mp4 |
 | 2 | punch | CERRADO | — | raw/satisfiedbounce_punch_refill.mp4 |
-| 3 | press | en curso | — | raw/nexusboxlab_press_x4.mp4 |
-| 4 | slam | revisión hecha | — | raw/neonbounce_bighammer_6.6M.mp4 |
-| 5 | bighammer | nuevo | slam (×2, tope 2048 = FULL, bolitas confeti chicas fijas) | raw/neonbounce_bighammer_6.6M.mp4 |
+| 3 | press | CERRADO | — | raw/nexusboxlab_press_x4.mp4 |
+| 4 | slam | CERRADO (= bighammer) | — | raw/neonbounce_bighammer_6.6M.mp4 |
+| 5 | bighammer | = slam (mismo formato en las dos grabaciones de Neon Bounce); falta un 10.º formato | slam (×2, tope 2048 = FULL, bolitas confeti chicas fijas) | raw/neonbounce_bighammer_6.6M.mp4 |
 | 6 | iris | nuevo | pinzas/cuña de crusher_jaws + aplastar ×2; 7 cuchillas en el borde que cierran juntas cada ~3.7 s, sin gravedad | raw/splitworks_iris_4.1M.mp4 |
 | 7 | two_cones | nuevo | brazos desde el centro de punch, con agujas; gravedad leve, golpe que ACELERA 0.93→0.43 s, final "drop" (desaparece el aro y se dispersan) | raw/xbongobeats_2cones_5.3M.mp4 |
 | 8 | escape | nuevo | aro giratorio con hueco; cada bola que escapa = 3 nuevas en el centro; lleno = FULL | reference/prototype/formats/escape.py |
