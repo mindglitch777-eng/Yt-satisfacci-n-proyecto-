@@ -1,0 +1,75 @@
+{
+ "referencia": "reference/videos/raw/nexusboxlab_press_x4.mp4",
+ "fuente_de_cada_dato": "hoja a 0.5 fps de todo el video + REVISION_4_FORMATOS (press). Sin contador en la referencia: curva a ojo.",
+ "arena": {
+  "forma": "circulo",
+  "R_px_1080": 455
+ },
+ "gravedad": 0,
+ "maquina": {
+  "tipo": "barras_en_rieles",
+  "piezas": "4 barras en cuadrado girado 45°, deslizan por 2 rieles diagonales en X que cruzan toda la pantalla",
+  "movimiento": {
+   "periodo_s": 2.2,
+   "pausas": "ninguna",
+   "frame_1": "ciclo ya andando"
+  }
+ },
+ "bolas": {
+  "r_inicial_R": 0.06,
+  "capacidad_full": 1500,
+  "colores": "uno por generación; después de lleno cada golpe pinta casi todo el círculo"
+ },
+ "multiplica": {
+  "regla": "×4 por bola aplastada",
+  "texto_popup": "×4 / +N"
+ },
+ "salen": "4 masas por los 4 huecos",
+ "curva_conteo": [
+  [
+   0,
+   4
+  ],
+  [
+   4,
+   12
+  ],
+  [
+   8,
+   40
+  ],
+  [
+   10,
+   70
+  ],
+  [
+   12,
+   120
+  ],
+  [
+   14,
+   260
+  ],
+  [
+   16,
+   600
+  ],
+  [
+   18,
+   1100
+  ],
+  [
+   19.5,
+   1500
+  ]
+ ],
+ "despues_de_lleno": "toma de color: cada ciclo pinta casi todo el círculo de un color nuevo (19 → 26 s)",
+ "final": "a los ~27 s se rompe el aro y las bolas salen de la pantalla (video de 29 s)",
+ "duracion_s": 29,
+ "estado": "CERRADO 25-11-2026 (2 rondas): rieles en X, ciclo 2.2 s sin pausas desde el frame 1, bolas en todo el círculo, lleno a los ~18 s, toma de color hasta los 26 s, se rompe a los 26 s. -14 LUFS.",
+ "pendiente": [
+  "a los ~20 s el contador baja a ~1.000 y vuelve a 1.500 (lo que aplasta la prensa al cerrarse tarda un ciclo en renacer)",
+  "la toma de color pinta desde el centro; en la referencia también salen 4 manchas por los huecos",
+  "final: la referencia saca el aro y las bolas se van; acá 'IT BROKE!' de la base común"
+ ]
+}

@@ -36,10 +36,14 @@ def hsv(h, s=0.85, v=1.0):
 class Frame:
     """Superficie 1080x1920 RGBA cuyo buffer se escribe directo al encoder."""
 
-    def __init__(self):
-        self.buf = np.zeros((H, W, 4), np.uint8)
+    def __init__(self, scale=1.0):
+        # scale < 1: preview en baja (se dibuja igual en coordenadas 1080x1920, el canvas escala)
+        self.w, self.h = int(W * scale), int(H * scale)
+        self.buf = np.zeros((self.h, self.w, 4), np.uint8)
         self.surface = skia.Surface(self.buf, colorType=skia.kRGBA_8888_ColorType)
         self.canvas = self.surface.getCanvas()
+        if scale != 1.0:
+            self.canvas.scale(scale, scale)
 
 
 def text_width(s, size):

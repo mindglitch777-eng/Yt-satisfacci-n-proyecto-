@@ -58,8 +58,15 @@ class Press(Arena):
             self.space.add(b, s)
             self.bars.append((b, u, t))
         self.d = self.d_open
-        self.phase, self.ph_t = "wait", 0.0
-        self.T = dict(wait=g.get("t_wait", 0.6), close=g.get("t_close", 0.8), hold=0.3, open=g.get("t_open", 0.85))
+        import json, os
+        sp = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                         "reference/formats/press/spec.json")))
+        self.curve = np.array(sp["curva_conteo"], float)
+        self.capacity = int(sp["bolas"]["capacidad_full"])
+        self.t_takeover_end = g.get("t_break", 26.0)
+        # ciclo de 2.2 s sin pausas (ref), y el frame 1 ya cerrando
+        self.T = dict(wait=0.25, close=0.85, hold=0.2, open=0.9)
+        self.phase, self.ph_t = "close", 0.35
         self.crushed = 0
         self.presses = 0
         # la primera bola: grande, con cara, ya en movimiento dentro del cuadrado
@@ -168,14 +175,31 @@ class Press(Arena):
         self.audio.event(self.t, "slam", 0.7)
         if k == 0:
             return
-        n_new = min(k * self.mult, self.capacity + 50 - len(self.bodies))
+        want = float(np.interp(self.t + 2.2, self.curve[:, 0], self.curve[:, 1]))
+        full = len(self.bodies) + k >= 0.95 * self.capacity
+        n_new = (self.capacity - len(self.bodies)) if full else max(k, min(k * self.mult, int(want) - len(self.bodies)))
+        n_new = min(n_new, self.capacity - len(self.bodies))
         self.cur = (self.cur + 1) % len(self.colors)
+        if full:                                        # toma de color: el golpe pinta casi todo el círculo
+            self.takeover = (self.t, self.cur)
         self.resize_all_for(len(self.bodies) + n_new)
         self._spawn_blobs(n_new)
         self.audio.hit(self.t + 0.003, min(1.0, 0.5 + k / 200), "squish", 0.0, ten)
         for i in range(int(min(9, 2 + 1.6 * math.log2(1 + n_new)))):
             self.audio.event(self.t + 0.05 + i * 0.028, "pop", 0.9 + 0.5 * ten + 0.07 * i)
         self.pops.append([self.cx, self.cy - 0.06 * self.R, f"×{self.mult}" if k < 30 else f"+{n_new}", 0.0])
+
+    def update(self):
+        super().update()
+        tk = getattr(self, "takeover", None)
+        if tk and self.bodies:
+            reach = 650 * (self.t - tk[0])          # ola desde el centro, cubre ~0.9R
+            if reach < 0.92 * self.R:
+                P = self.positions()
+                for i in np.nonzero(np.hypot(P[:, 0] - self.cx, P[:, 1] - self.cy) < reach)[0]:
+                    self.col[i] = tk[1]
+        if self.done_at is None and self.t >= self.t_takeover_end and len(self.bodies) >= 0.8 * self.capacity:
+            self.climax()
 
     def resize_all_for(self, n):
         # el tamaño se achica solo y de a poco (formats/sizing.py); las nuevas nacen del tamaño actual
@@ -218,6 +242,14 @@ class Press(Arena):
 
     # ---------- dibujo ----------
     def draw_machine(self, c):
+        rail = skia.Paint(Color4f=rgb((0.55, 0.56, 0.6), 0.9), AntiAlias=True, StrokeWidth=7)
+        L = 2200
+        for a in (math.radians(45), math.radians(135)):
+            dx, dy = math.cos(a) * L, math.sin(a) * L
+            c.drawLine(self.cx - dx, self.cy - dy, self.cx + dx, self.cy + dy, rail)
+        self._draw_bars(c)
+
+    def _draw_bars(self, c):
         """4 barras metálicas con borde dorado (como la referencia)."""
         bw = self.bar_w * 2
         body = skia.Paint(Color4f=rgb((0.62, 0.63, 0.67)), AntiAlias=True, StrokeWidth=bw, StrokeCap=skia.Paint.kButt_Cap)

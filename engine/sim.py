@@ -11,6 +11,7 @@ from engine.gfx import W, H, Frame, Camera, Particles, Popups, background
 from audio.engine import AudioEngine
 
 CHIP, WALL, MACHINE = 1, 2, 3
+PREVIEW = float(os.environ.get("PREVIEW_SCALE", "1"))   # 0.5 = prueba a 540x960 (regla de ahorro)
 
 
 def _true_peak(path):
@@ -189,10 +190,10 @@ class Sim:
         os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
         silent = out_path + ".v.mp4"
         enc = subprocess.Popen(
-            ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{W}x{H}",
+            ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{int(W * PREVIEW)}x{int(H * PREVIEW)}",
              "-r", str(self.fps), "-i", "-", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
              "-pix_fmt", "yuv420p", "-movflags", "+faststart", silent], stdin=subprocess.PIPE)
-        fr = Frame()
+        fr = Frame(PREVIEW)
         c = fr.canvas
         first = None
         total = int((max_seconds or 59.5) * self.fps)
