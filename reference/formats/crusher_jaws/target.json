@@ -16,6 +16,17 @@
   "ball_r_over_R_first": 0.0396,
   "ball_r_over_R_last": 0.0081,
   "mass_in_top_half_pct": 62,
-  "excluded_2x": []
- }
+  "excluded_2x": [],
+  "machine": "jaws",
+  "jaw_entries": 6,
+  "jaw_valid_until_s": 12.2,
+  "jaw_cycle_s": 2.1,
+  "jaw_alternation": 1.0,
+  "jaw_reach": 0.7,
+  "jaw_in_s": 0.6,
+  "jaw_active_s": 1.8,
+  "jaw_overlap_pct": 0,
+  "jaw_outside_pct": 70
+ },
+ "note": "jaw_*: detector de pinzas laterales (measure.py --machine jaws), medido 0-12.2 s (despu\u00e9s las bolas tapan el fondo). claps/arm_*/aim no aplican a este formato. jaw_outside_pct: % del tiempo con brazos afuera del aro (banda exterior lateral, sin el engranaje)."
 }

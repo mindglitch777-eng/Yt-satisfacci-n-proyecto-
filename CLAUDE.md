@@ -13,6 +13,18 @@ Formatos vistos: martillo o péndulo que multiplica, aro giratorio con hueco ("e
 anillos concéntricos que se rompen ("will the ball multiply?"), merge estilo suika, zigzag de polígonos,
 color battle (4 colores, ¿cuál gana?), hexágono con zonas x10/x20/split, prensa hidráulica, blades/aspas.
 
+## REGLA: fidelidad a las referencias (obligatoria desde Nov 2026)
+- **Ningún formato se programa "de memoria".** Antes de escribirlo hay que tener referencias reales
+  (grabaciones o capturas) en `reference/formats/<formato>/` y una ficha `SPEC.md` con la mecánica exacta:
+  qué hace la máquina, qué le pasa a la bola (aplastada, golpeada, partida), cuántas salen, dónde aparecen,
+  ritmo de la cámara, textos en pantalla y qué suena en cada evento.
+- `python -m tools.refstudy <video>` saca la hoja de frames + el análisis de sonido (golpes por segundo,
+  brillo y volumen en el tiempo) para armar el SPEC. Las capturas que manda el usuario mandan sobre cualquier suposición.
+- La descripción del usuario se toma literal. Ej.: "el martillo aprieta la bolita y salen dos más" = aplastar
+  contra la pared → la bola sobrevive y nacen +2; NO es "golpe en el aire = multiplicar".
+- Desde este container TikTok está bloqueado y YouTube pide verificación anti-bot: las referencias
+  las sube el usuario al repo (o se habilita el host en el entorno).
+
 ## Brainrots como fichas (núcleo del diferencial)
 - Cada ficha es un personaje brainrot (estilo Tralalero Tralala, Tung Tung Sahur, Bombardiro Crocodilo, Ballerina Cappuccina, etc.).
 - **Dibujar versiones propias en vector/código** (no descargar ni copiar imágenes de terceros): así evitamos reclamos y el "reused content".
@@ -38,7 +50,10 @@ color battle (4 colores, ¿cuál gana?), hexágono con zonas x10/x20/split, pren
 - Pitch y densidad que **suben con la tensión**. Silencio de 0.3s antes del clímax y después un drop o explosión.
 - Limitador de eventos por frame + agrupación (granular): miles de choques tienen que sonar a "lluvia", nunca a saturación.
 - Sonido propio por ficha brainrot (sintetizado o grabado por nosotros, nunca audio con copyright).
-- Pista base opcional generada (pad + beat suave) con sidechain a los impactos.
+- **Sin música de fondo.** Solo sonidos de satisfacción: martillo, aplastado (squish), multiplicación (pop),
+  choques entre bolas (clacks tipo canica), rebotes en la pared, y las voces de los brainrots.
+- Voces brainrot ("tung tung tung sahur", "tralalero tralala", "ballerina cappuccina") sintetizadas por nosotros
+  (espeak-ng + procesado), nunca el audio original de los memes.
 - Master: compresor, normalizado a -14 LUFS (estándar YouTube).
 
 ## Reglas de viralidad (en el código, no a mano)

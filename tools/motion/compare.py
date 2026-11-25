@@ -18,12 +18,29 @@ CHECKS = [
 ]
 
 
+# pinzas laterales (crusher_jaws): las métricas de brazos centrales no aplican; valen estas
+CHECKS_JAWS = [
+    ("machine_period_s", .25, "ritmo general de la máquina"),
+    ("jaw_cycle_s", .2, "tiempo entre entradas de pinza"),
+    ("jaw_alternation", ("abs", .15), "las pinzas se alternan izquierda/derecha"),
+    ("jaw_reach", .2, "cuánto entra la pinza hacia el centro"),
+    ("jaw_in_s", .35, "velocidad de entrada de la pinza"),
+    ("jaw_active_s", .25, "cuánto tiempo está adentro cada pinza"),
+    ("jaw_overlap_pct", ("abs", 10), "las dos pinzas casi nunca están adentro a la vez"),
+    ("jaw_outside_pct", ("abs", 15), "los brazos salen AFUERA del aro al abrirse (giran alrededor del engranaje)"),
+    ("ball_r_over_R_first", .3, "tamaño de la primera bola"),
+    ("ball_r_over_R_last", .6, "tamaño de bola al final"),
+    ("mass_in_top_half_pct", ("abs", 15), "gravedad efectiva (sin gravedad ≈ 50-65%)"),
+]
+
+
 def main(ref_p, got_p):
     ref = json.load(open(ref_p)); ref = ref.get("summary", ref)
     got = json.load(open(got_p)); got = got.get("summary", got)
     bad = 0
+    checks = CHECKS_JAWS if ref.get("machine") == "jaws" else CHECKS
     print(f"{'métrica':32} {'ref':>8} {'render':>8}  estado")
-    for k, tol, why in CHECKS:
+    for k, tol, why in checks:
         r, g = ref.get(k), got.get(k)
         if r is None or g is None:
             print(f"{k:32} {str(r):>8} {str(g):>8}  ? sin dato"); continue
@@ -31,7 +48,7 @@ def main(ref_p, got_p):
         bad += not ok
         print(f"{k:32} {r:>8} {g:>8}  {'OK' if ok else 'FUERA → ' + why}")
     am = got.get("arm_moving_pct") or [0, 0]
-    if min(am) < 30:
+    if checks is CHECKS and min(am) < 30:
         bad += 1; print(f"{'arm_moving_pct':32} {str(ref.get('arm_moving_pct')):>8} {str(am):>8}  FUERA → los DOS brazos se mueven")
     print("\nRESULTADO:", "PASA" if not bad else f"{bad} métricas fuera de tolerancia")
     return 1 if bad else 0

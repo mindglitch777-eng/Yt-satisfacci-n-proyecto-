@@ -9,6 +9,9 @@ Qué mide (todo en unidades del aro: R = radio del círculo, así 480p y 1080p s
   - correlación de velocidad entre brazos (negativa = tijera/aplauso simétrico, positiva = barren juntos)
   - radio de bola en el tiempo (r/R)
   - gravedad efectiva: % de tiempo que la masa de bolas está en la mitad de ARRIBA
+  - --machine jaws: pinzas LATERALES (montadas en el aro a las 9 y a las 3, entran hacia el centro):
+    por frame y por lado, cuánto entra la pinza (reach = 1 - distancia mínima al centro de sus píxeles grises);
+    de ahí: ciclo entre entradas, alternancia izq/der, profundidad, tiempo de entrada, tiempo activa, solapamiento
   - --tiktok: detecta tramos a 2x (la barra de comentarios desaparece) y los marca como NO válidos
 """
 import argparse, json, subprocess
@@ -104,12 +107,70 @@ def measure(f, t0=0, dur=40, tiktok=False, scale_to=540):
             lab, n = ndimage.label(ball)
             ar = ndimage.sum(ball, lab, range(1, n + 1)); ar = ar[ar > 3]
             if len(ar): rr = float(np.sqrt(np.median(ar) / np.pi) / R)
-        rows.append({"t": round(t0 + i / FPS, 3), "arms": pk, "ball_px": int(ball.sum()),
+        # pinzas laterales: gris medio (no el blanco del aro, ni textos ni destellos), por mitad izq/der
+        jgray = (d < .9) & (sat < 30) & (g > 95) & (g < 215)
+        jaw = []
+        for side in (dx < 0, dx > 0):
+            p = jgray & side
+            jaw.append(round(float(1 - np.percentile(d[p], 0.5)), 3) if p.sum() > 25 * (w / 480) ** 2 else 0.0)
+        # brazos AFUERA del aro (banda lateral exterior, sin el engranaje): la pinza sale del círculo al abrirse
+        for sx in (-1, 1):
+            gd = np.hypot(dx - sx, dy)
+            band = (d > 1.06) & (d < 1.7) & (np.abs(dy) < .8) & (sx * dx > .5) & (gd > .14) & (sat < 30) & (g > 95) & (g < 215)
+            jaw.append(1.0 if band.sum() > 40 * (w / 480) ** 2 else 0.0)
+        cov = float(((d < .9) & (sat >= 30) & (g > 25)).sum() / max(1, (d < .9).sum()))   # superficie con bolas (de color)
+        rows.append({"t": round(t0 + i / FPS, 3), "arms": pk, "ball_px": int(ball.sum()), "jaw": jaw, "cov": round(cov, 3),
                      "mach": [int(x) for x in hist],
                      "my": float(dy[ball].mean()) if ball.any() else None,
                      "mx": float(dx[ball].mean()) if ball.any() else None, "r": rr})
     return {"video": f, "circle": [cx, cy, R], "res": [w, h], "rows": rows,
             "tiktok_2x": tiktok_2x(f, w, h) if tiktok else []}
+
+
+def jaw_summary(rows, R_px, enter=0.2):
+    """pinzas laterales: una 'entrada' = la pinza de un lado pasa de reach < enter a reach >= enter.
+    Solo vale mientras las pinzas se ven sobre fondo libre: cuando las bolas tapan > 30% del círculo, los tonos
+    sombreados de las bolas se confunden con el gris de la pinza → ese tramo se descarta."""
+    cut = next((i for i, r in enumerate(rows) if r.get("cov", 0) > 0.30), len(rows))
+    rows = rows[:cut]
+    JA = np.array([r.get("jaw", [0, 0, 0, 0]) for r in rows], float)
+    out_pct = [round(float(JA[:, k].mean() * 100)) for k in (2, 3)] if JA.shape[1] >= 4 else None
+    J = JA[:, :2]
+    t = np.array([r["t"] for r in rows])
+    if len(J) < 30:
+        return {}
+    J = ndimage.median_filter(J, size=(5, 1))          # saca destellos de 1-2 frames
+    ent = []                                           # (t_inicio, lado, reach_max, t_hasta_max, duración)
+    for s in (0, 1):
+        on = J[:, s] >= enter
+        i = 0
+        while i < len(on):
+            if on[i]:
+                j = i
+                while j < len(on) and on[j]: j += 1
+                if j - i >= 6 and i > 0:               # descarta entradas ya empezadas en el frame 0
+                    k = i + int(np.argmax(J[i:j, s]))
+                    ent.append((t[i], s, float(J[k, s]), t[k] - t[i], t[min(j, len(t) - 1)] - t[i]))
+                i = j
+            else:
+                i += 1
+    ent.sort()
+    if len(ent) < 3:
+        return {"jaw_entries": len(ent)}
+    ts = np.array([e[0] for e in ent])
+    sides = [e[1] for e in ent]
+    both = ((J[:, 0] >= enter) & (J[:, 1] >= enter)).mean()
+    return {
+        "jaw_entries": len(ent),
+        "jaw_valid_until_s": round(float(t[-1]), 1),
+        "jaw_cycle_s": round(float(np.median(np.diff(ts))), 2),
+        "jaw_alternation": round(float(np.mean([a != b for a, b in zip(sides, sides[1:])])), 2),
+        "jaw_reach": round(float(np.median([e[2] for e in ent])), 2),
+        "jaw_in_s": round(float(np.median([e[3] for e in ent])), 2),
+        "jaw_active_s": round(float(np.median([e[4] for e in ent])), 2),
+        "jaw_overlap_pct": round(float(both * 100)),
+        "jaw_outside_pct": round(float(np.mean(out_pct))) if out_pct else None,   # % del tiempo con brazos afuera del aro
+    }
 
 
 def summarize(m):
@@ -167,6 +228,7 @@ def summarize(m):
         "ball_r_over_R_last": radii[-1][1] if radii else None,
         "mass_in_top_half_pct": round(float(np.mean(top) * 100)) if top else None,
         "excluded_2x": m["tiktok_2x"],
+        **({"machine": "jaws", **jaw_summary(m["rows"], m["circle"][2])} if m.get("machine") == "jaws" else {}),
     }
 
 
@@ -174,8 +236,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("video"); ap.add_argument("--t0", type=float, default=0); ap.add_argument("--dur", type=float, default=40)
     ap.add_argument("--tiktok", action="store_true"); ap.add_argument("-o", default=None)
+    ap.add_argument("--machine", default="arms", choices=["arms", "jaws"])
     a = ap.parse_args()
     m = measure(a.video, a.t0, a.dur, a.tiktok)
+    m["machine"] = a.machine
     s = summarize(m)
     if a.o: json.dump({"summary": s, **m}, open(a.o, "w"))
     print(json.dumps(s, indent=1))
