@@ -103,7 +103,7 @@ class Punch(Sim):
         self.r_exp = g.get("r_exp", 0.30)
         self.r_min = g.get("r_min", 4.6)                  # chiquitas al final: entran MUCHÍSIMAS
         # lleno de verdad: el círculo tapado (empaquetado ~0.78) con bolas de radio mínimo
-        self.g["capacity"] = int(g.get("packing", 0.78) * (self.R / self.r_min) ** 2)
+        self.g["capacity"] = int(g.get("capacity_full", 3750))
         self.broken_at = None
         self.frags = []
         # ciclo
@@ -121,7 +121,10 @@ class Punch(Sim):
         self.close_from = list(self.ang)
         self.close_to = self._closed(-1, 0.0)
         self.cyc = dict(close_T=0.3, hold=0.1)
-        self.mult_step = g.get("mult_step", 2)            # ×2, ×4, ×6, ×8, ×10, ×12… (sube en cada golpe)
+        import json, os
+        sp = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                         "reference/formats/punch/spec.json")))
+        self.curve = np.array(sp["curva_conteo"], float)     # el Pacer sigue ESTA tabla (contador de la referencia)
         self.pops, self.flashes = [], []
         self.last_voice = -9
         self.round = g.get("round", 2)
@@ -268,14 +271,14 @@ class Punch(Sim):
             caught = np.nonzero((off < self.gap / 2 + margin) & (rad > 30))[0]
             # capacidad fija de la cuña: las que entran en el triángulo entre los guantes
             r_new = self.rad[0] if self.rad else self.r_big     # las nuevas nacen del tamaño actual
-            wedge_area = 0.5 * (self.gap + 0.1) * (self.R ** 2 - 40 ** 2)
-            cap = max(1, int(wedge_area * self.g.get("wedge_fill", 0.02) / (math.pi * r_new ** 2)))
+            n_now = len(P)
+            want = float(np.interp(self.t + self.g.get("pacer_ahead", 0.6), self.curve[:, 0], self.curve[:, 1]))
+            cap = max(1, int(round(want - n_now)))
             if len(caught) > cap:
                 caught = caught[np.argsort(off[caught])][:cap]
             k = len(caught)
-            mult = self.mult_step * (self.mult_i + 1) if k else 1
             room = self.g["capacity"] - len(P)
-            n_new = max(0, min(k * (mult - 1), room))
+            n_new = max(0, min(k, room))                  # lo atrapado se duplica: +N = lo atrapado
             if k:
                 self.mult_i += 1
             if k:
@@ -306,7 +309,7 @@ class Punch(Sim):
                 pass                                    # tamaño: se achican de a poco (formats/sizing.py)
                 lx = self.cx + 0.3 * self.R * math.cos(self.target)
                 ly = self.cy + 0.3 * self.R * math.sin(self.target)
-                lab = f"×{mult}" if n_new == k * (mult - 1) else f"+{n_new}"
+                lab = "×2" if k <= 8 and n_new == k else f"+{n_new}"
                 self.pops.append([lx, ly, lab, 0.0])
                 self.particles.burst(hx, hy, self.chars[self.cur].color, n=14, speed=600, size=3, life=0.35)
         e = min(1.0, 0.4 + k / 120)
