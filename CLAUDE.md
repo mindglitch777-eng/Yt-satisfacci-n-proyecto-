@@ -1,5 +1,7 @@
 # BRAINROT PHYSICS — fábrica de Shorts satisfying 100% código
 
+> **PRIORIDAD ACTUAL (hasta el domingo 29/11): seguir `PLAN_10_FORMATOS.md` en modo ahorro.** Sus reglas están por encima de las de perfección de abajo.
+
 ## Objetivo
 Canal de YouTube Shorts que crece en **vistas y suscriptores** y llega a **monetizar** (YPP).
 Videos de física "satisfying" generados por código, protagonizados por **brainrots como fichas**:
