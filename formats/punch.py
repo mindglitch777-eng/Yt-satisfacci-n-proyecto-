@@ -576,19 +576,10 @@ class Punch(Sim):
         rr = np.round(np.array(self.rad) * 2) / 2   # agrupar por radio (0.5 px)
         for ci in np.unique(col):
             base = self.chars[ci].color
-            dark = [v * 0.22 for v in base]
-            light = [min(1, v * 0.55 + 0.5) for v in base]
+            from formats.arena import Arena
             for r in np.unique(rr[col == ci]):
                 sel = P[(col == ci) & (rr == r)]
-                pts = [skia.Point(float(x), float(y)) for x, y in sel]
-                c.drawPoints(skia.Canvas.kPoints_PointMode, pts,
-                             skia.Paint(Color4f=rgb(dark), AntiAlias=True, StrokeWidth=2 * r, StrokeCap=skia.Paint.kRound_Cap))
-                c.drawPoints(skia.Canvas.kPoints_PointMode, pts,
-                             skia.Paint(Color4f=rgb(base), AntiAlias=True, StrokeWidth=2 * r * 0.74, StrokeCap=skia.Paint.kRound_Cap))
-                hl = [skia.Point(p.fX - r * 0.28, p.fY - r * 0.3) for p in pts]
-                c.drawPoints(skia.Canvas.kPoints_PointMode, hl,
-                             skia.Paint(Color4f=rgb(light, 0.95), AntiAlias=True, StrokeWidth=max(1.2, r * 0.5),
-                                        StrokeCap=skia.Paint.kRound_Cap))
+                Arena._ball_pts(c, [skia.Point(float(x), float(y)) for x, y in sel], base, r)
 
     def draw_arms(self, c):
         L, hw, hh = self.arm_len, self.hw, self.hh

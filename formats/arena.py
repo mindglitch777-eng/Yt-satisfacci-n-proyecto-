@@ -292,15 +292,17 @@ class Arena(Sim):
 
     @staticmethod
     def _ball_pts(c, pts, base, r):
-        dark = [v * 0.22 for v in base]
-        light = [min(1, v * 0.55 + 0.5) for v in base]
+        """estilo de la referencia: esfera de color plena, brillo claro arriba-izquierda, SIN contorno oscuro."""
+        mid = [min(1, v * 0.8 + 0.2) for v in base]
+        light = [min(1, v * 0.35 + 0.65) for v in base]
         c.drawPoints(skia.Canvas.kPoints_PointMode, pts,
-                     skia.Paint(Color4f=rgb(dark), AntiAlias=True, StrokeWidth=2 * r, StrokeCap=skia.Paint.kRound_Cap))
-        c.drawPoints(skia.Canvas.kPoints_PointMode, pts,
-                     skia.Paint(Color4f=rgb(base), AntiAlias=True, StrokeWidth=2 * r * 0.74, StrokeCap=skia.Paint.kRound_Cap))
-        hl = [skia.Point(p.fX - r * 0.28, p.fY - r * 0.3) for p in pts]
+                     skia.Paint(Color4f=rgb(base), AntiAlias=True, StrokeWidth=2 * r, StrokeCap=skia.Paint.kRound_Cap))
+        m = [skia.Point(p.fX - r * 0.15, p.fY - r * 0.18) for p in pts]
+        c.drawPoints(skia.Canvas.kPoints_PointMode, m,
+                     skia.Paint(Color4f=rgb(mid, 0.9), AntiAlias=True, StrokeWidth=2 * r * 0.62, StrokeCap=skia.Paint.kRound_Cap))
+        hl = [skia.Point(p.fX - r * 0.32, p.fY - r * 0.36) for p in pts]
         c.drawPoints(skia.Canvas.kPoints_PointMode, hl,
-                     skia.Paint(Color4f=rgb(light, 0.95), AntiAlias=True, StrokeWidth=max(1.2, r * 0.5),
+                     skia.Paint(Color4f=rgb(light, 0.95), AntiAlias=True, StrokeWidth=max(1.2, r * 0.42),
                                 StrokeCap=skia.Paint.kRound_Cap))
 
     def draw_hud(self, c):

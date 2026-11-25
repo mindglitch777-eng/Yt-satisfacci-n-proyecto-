@@ -196,7 +196,7 @@ class CrusherJaws(Arena):
         # 1) descompresión 2 s  2) casi quieta  3) SALIDA RADIAL: todo se aleja del centro a la misma velocidad
         #    (el centro se vacía primero, anillo que se agranda), arranca lento y acelera (grueso entre 25.5 y 27.5 s)
         rate = 0.42 if ds < 2.0 else 0.04
-        te = self.t - self.g.get("t_exit", 24.8)
+        te = self.t - self.g.get("t_exit", 24.6)
         v_out = 0.0 if te <= 0 else min(480.0, 480.0 * (te / 2.0) ** 2)
         if self.bodies:
             for b in self.bodies:
@@ -356,7 +356,8 @@ class CrusherJaws(Arena):
             return
         ts, cs = zip(*self.COVER)
         # cobertura = área real de las bolitas en pantalla (la medición por píxeles no cuenta el borde oscuro)
-        target = min(0.95, float(np.interp(self.t, ts, cs)) * self.g.get("cover_k", 1.0))
+        k = self.g.get("cover_k_early", 1.1) if self.t < 26.0 else self.g.get("cover_k", 1.0)
+        target = min(0.97, float(np.interp(self.t, ts, cs)) * k)
         r = self.rad[0]
         P = self.positions()
         on = (P[:, 0] > -r) & (P[:, 0] < W + r) & (P[:, 1] > -r) & (P[:, 1] < H + r)
@@ -364,7 +365,7 @@ class CrusherJaws(Arena):
         missing = int((target * W * H - on.sum() * a1) / a1)
         if missing <= 0:
             return
-        d = 2 * r * 1.02
+        d = 2 * r * 0.93          # rejilla un poco más apretada que la cuadrada (la física acomoda en hexagonal)
         occ = {}
         for i, (x, y) in enumerate(P):
             occ[(int(x // d), int(y // d))] = i
