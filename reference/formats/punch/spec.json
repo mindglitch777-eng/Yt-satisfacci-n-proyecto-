@@ -21,7 +21,11 @@
   ],
   "movimiento": {
    "tipo": "giro continuo en sentidos opuestos (aprobado por el usuario)",
-   "rel_velocidad": "1.12-1.3"
+   "rel_velocidad": "1.12-1.3",
+   "cruce_cada_s": "360/(w1+w2)",
+   "w_inicial_deg_s": 257,
+   "w_final_deg_s": 138,
+   "intervalo": "0.7 s → 1.3 s, frena de a poco hasta el final"
   },
   "dibujo": "guantes grises ENORMES (puño + puño de manga), varillas finas al pivote central"
  },
@@ -114,5 +118,10 @@
   "N BALLS",
   "X IS TAKING OVER"
  ],
- "curva_conteo_nota": "leída del contador 'N BALLS' del video original (MEDIDAS.md, verificada a 8/16/23 s: 63/347/601). La tabla de REVISION_4_FORMATOS (202 a los 8 s, 498 a los 16 s) no coincide con este video. FULL ~3.750 a los ~55 s según la revisión (falta verificar)."
+ "curva_conteo_nota": "leída del contador 'N BALLS' del video original (MEDIDAS.md, verificada a 8/16/23 s: 63/347/601). La tabla de REVISION_4_FORMATOS (202 a los 8 s, 498 a los 16 s) no coincide con este video. FULL ~3.750 a los ~55 s según la revisión (falta verificar).",
+ "excepciones_aprobadas": {
+  "arm_velocity_corr": "No se persigue. El usuario aprobó el giro continuo en sentidos opuestos (la referencia es tijera de ida y vuelta, corr -0.52).",
+  "arm_mean_speed_deg_s": "Sale del ritmo pedido (257→138 °/s por brazo para cruzar cada 0.7→1.3 s): ~199 °/s contra 150 de la tijera de ida y vuelta de la referencia."
+ },
+ "estado": "CERRADO 25-11-2026: ritmo 0.77/1.13 s (ref 0.7/1.3), una mancha sólida por golpe, masa apretada en la cuña, curva del contador ±13% desde 12 s."
 }

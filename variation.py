@@ -17,8 +17,10 @@ def punch_genome(seed):
         "palette": {"bg": (0.015, 0.02, 0.05), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
         "capacity_full": 3750, "r_min": 6.5, "r_first": 0.077,
         "head_w": r.uniform(225, 245), "head_h": r.uniform(190, 205),   # guantes como la referencia (~el doble)
-        "iv_early": 0.8, "iv_late": 1.3, "ritard_t": 18.0,
-        "spin_early": 240, "spin_late": 140, "speed_ratio": r.uniform(1.12, 1.3),
+        "iv_early": 0.7, "iv_late": 1.3, "ritard_t": 50.0,
+        "spin_early": 257, "spin_late": 138,   # cruce cada 360/(w1+w2): 0.7 s → 1.3 s
+        "gravity": 0, "damping": 0.02,         # sin gravedad, frenado alto: quedan donde las dejan los brazos
+        "tijera_excepcion": "arm_velocity_corr no se persigue: giro continuo aprobado por el usuario", "speed_ratio": r.uniform(1.12, 1.3),
         "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
         "root": r.choice([130.8, 146.8, 164.8]),
         "timbre": r.choice(["marimba", "pluck"]),

@@ -80,6 +80,8 @@ class Punch(Sim):
         self.rod_w = 7
         self.gap = 2 * math.atan2(self.hw / 2 + 3, self.arm_len)   # ángulo con los guantes tocándose
         self.chars = [get_char(k) for k in g["chars"]]
+        from formats.arena import WAVE_COLORS
+        self.colors = [c.color for c in self.chars] + list(WAVE_COLORS[3:])   # un color nuevo por golpe
         self.cur = 0
         # brazos sólidos en la física (bloquean siempre, también quietos)
         self.arm_bodies = []
@@ -274,16 +276,17 @@ class Punch(Sim):
             n_now = len(P)
             want = float(np.interp(self.t + self.g.get("pacer_ahead", 0.6), self.curve[:, 0], self.curve[:, 1]))
             cap = max(1, int(round(want - n_now)))
+            whole = caught                                  # TODA la masa atrapada pasa al color nuevo (mancha sólida)
             if len(caught) > cap:
-                caught = caught[np.argsort(off[caught])][:cap]
+                caught = caught[np.argsort(off[caught])][:cap]   # solo una parte se duplica (Pacer)
             k = len(caught)
             room = self.g["capacity"] - len(P)
             n_new = max(0, min(k, room))                  # lo atrapado se duplica: +N = lo atrapado
             if k:
                 self.mult_i += 1
             if k:
-                self.cur = (self.cur + 1) % len(self.chars)
-                for i in caught:
+                self.cur = (self.cur + 1) % len(self.colors)
+                for i in whole:
                     self.col[i] = self.cur
                 tx, ty = -math.sin(self.target), math.cos(self.target)
                 ux, uy = math.cos(self.target), math.sin(self.target)
@@ -298,9 +301,7 @@ class Punch(Sim):
                     nx, ny = x - ux * step + tx * jit, y - uy * step + ty * jit
                     if math.hypot(nx - self.cx, ny - self.cy) < 40:
                         nx, ny = x + tx * jit * 2, y + ty * jit * 2
-                    v = self.rng.uniform(40, 160) * spd
-                    self._add(nx, ny, -ux * v + tx * self.rng.uniform(-30, 30) * spd,
-                              -uy * v + ty * self.rng.uniform(-30, 30) * spd, self.cur, r_new)
+                    self._add(nx, ny, 0.0, 0.0, self.cur, r_new)   # nacen quietas: la mancha queda junta en la cuña
                 for i in caught:
                     self.bodies[i].velocity = (self.bodies[i].velocity.x * 0.2, self.bodies[i].velocity.y * 0.2)
                 # al abrirse los brazos, lo del golpe sale DISPARADO cruzando el círculo (los brazos lo persiguen)
@@ -311,7 +312,7 @@ class Punch(Sim):
                 ly = self.cy + 0.3 * self.R * math.sin(self.target)
                 lab = "×2" if k <= 8 and n_new == k else f"+{n_new}"
                 self.pops.append([lx, ly, lab, 0.0])
-                self.particles.burst(hx, hy, self.chars[self.cur].color, n=14, speed=600, size=3, life=0.35)
+                self.particles.burst(hx, hy, self.colors[self.cur], n=14, speed=600, size=3, life=0.35)
         e = min(1.0, 0.4 + k / 120)
         self.audio.hit(self.t, e, "punch", pan, ten)
         if k:
@@ -319,7 +320,7 @@ class Punch(Sim):
             for i in range(int(min(8, 2 + 1.5 * math.log2(1 + k)))):
                 self.audio.event(self.t + 0.04 + i * 0.03, "pop", 0.9 + 0.5 * ten + 0.07 * i)
             if self.t - self.last_voice > self.g.get("voice_gap", 2.6):
-                self.audio.voice(self.t + 0.08, self.chars[self.cur].key, "short", pan)
+                self.audio.voice(self.t + 0.08, self.chars[self.cur % len(self.chars)].key, "short", pan)
                 self.last_voice = self.t
         if len(self.bodies) >= self.g["capacity"] and self.done_at is None:
             self._climax()
@@ -332,7 +333,7 @@ class Punch(Sim):
         self.audio.event(self.t, "boom", 1.0)
         self.audio.event(self.t + 0.05, "chord", 1.0)
         self.audio.event(self.t + 0.35, "crack", 1.0)
-        self.audio.voice(self.t + 0.9, self.chars[self.cur].key, "full", 0.0, 1.2)
+        self.audio.voice(self.t + 0.9, self.chars[self.cur % len(self.chars)].key, "full", 0.0, 1.2)
         self.cam.kick(0.8)
 
     def _break(self):
@@ -369,7 +370,8 @@ class Punch(Sim):
         base = math.radians(self.g.get("spin_early", 175) + (self.g.get("spin_late", 140) - self.g.get("spin_early", 175)) * late)
         d = (self.ang[1] - self.ang[0]) % TAU            # hueco que se va cerrando (0 = chocan)
         near = 1 - min(d, TAU - d) / math.pi             # 0 = opuestos, 1 = juntos
-        sp = base * (0.7 + 0.6 * near) * self.dt         # aceleran suave al acercarse al choque, mismo ritmo los dos
+        # ×1.032 = compensa la modulación (promedio de 1/f con f∈[0.7,1.3]) para que el cruce caiga cada 360/(w1+w2) s
+        sp = base * 1.032 * (0.7 + 0.6 * near) * self.dt  # aceleran suave al acercarse al choque, mismo ritmo los dos
         k = self.g.get("speed_ratio", 1.18)                 # uno un poco más rápido: el punto de choque va rotando
         new = [self.ang[0] + sp * 2 * k / (1 + k), self.ang[1] - sp * 2 / (1 + k)]
         d_new = (new[1] - new[0]) % TAU
@@ -578,7 +580,7 @@ class Punch(Sim):
         col = np.array(self.col)
         rr = np.round(np.array(self.rad) * 2) / 2   # agrupar por radio (0.5 px)
         for ci in np.unique(col):
-            base = self.chars[ci].color
+            base = self.colors[ci]
             from formats.arena import Arena
             for r in np.unique(rr[col == ci]):
                 sel = P[(col == ci) & (rr == r)]
@@ -626,7 +628,7 @@ class Punch(Sim):
         x0 = W / 2 - (wn + 18 + wb) / 2
         draw_text(c, num, x0, y, 112, (1, 1, 1), align="left", stroke=12)
         draw_text(c, L["balls"], x0 + wn + 18, y, 44, (0.75, 0.75, 0.8), align="left", stroke=8)
-        ch = self.chars[self.cur]
+        ch = self.chars[self.cur % len(self.chars)]
         label = f"{ch.name} {L['taking']}"
         tw = min(text_width(label, 46), 760)
         img, half = ch.sprite(40)
@@ -646,7 +648,7 @@ class Punch(Sim):
                 kb = min(1.0, db / 0.25)
                 draw_text(c, L["broke"], W / 2, self.cy - 40, 150 * (0.7 + 0.3 * kb), (1, 0.35, 0.3), stroke=16, glow=14)
                 if db > 0.7:
-                    w = self.chars[self.winner]
+                    w = self.chars[self.winner % len(self.chars)]
                     img, half = w.sprite(90)
                     c.drawImage(img, W / 2 - half, self.cy + 10)
                     draw_text(c, f"{w.name} {L['wins']}", W / 2, self.cy + 260, 88, w.color, stroke=14)
