@@ -42,8 +42,11 @@ class AudioEngine:
         """retumbe continuo de la masa empujada (nivel 0..1, se interpola)."""
         self.rumbles.append((t, float(level)))
 
+    VOICES_ON = False   # decisión del usuario (26-11-2026): los brainrots quedan solo como dibujos, sin voces
+
     def voice(self, t, key, kind="short", pan=0.0, gain=1.0):
-        self.voices.append((t, key, kind, pan, gain))
+        if self.VOICES_ON:
+            self.voices.append((t, key, kind, pan, gain))
 
     def event(self, t, name, gain=1.0):
         self.fx.append((t, name, gain))

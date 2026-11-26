@@ -80,8 +80,8 @@ class Punch(Sim):
         self.rod_w = 7
         self.gap = 2 * math.atan2(self.hw / 2 + 3, self.arm_len)   # ángulo con los guantes tocándose
         self.chars = [get_char(k) for k in g["chars"]]
-        from formats.arena import WAVE_COLORS
-        self.colors = [c.color for c in self.chars] + list(WAVE_COLORS[3:])   # un color nuevo por golpe
+        from formats.arena import wave_colors
+        self.colors = wave_colors(self.chars, self.rng)   # un color nuevo por golpe, distinto en cada video
         self.cur = 0
         # brazos sólidos en la física (bloquean siempre, también quietos)
         self.arm_bodies = []
@@ -647,7 +647,7 @@ class Punch(Sim):
                 db = self.t - self.broken_at
                 kb = min(1.0, db / 0.25)
                 draw_text(c, L["broke"], W / 2, self.cy - 40, 150 * (0.7 + 0.3 * kb), (1, 0.35, 0.3), stroke=16, glow=14)
-                if db > 0.7:
+                if db > 0.7 and getattr(self, "SHOW_WINNER", True):
                     w = self.chars[self.winner % len(self.chars)]
                     img, half = w.sprite(90)
                     c.drawImage(img, W / 2 - half, self.cy + 10)

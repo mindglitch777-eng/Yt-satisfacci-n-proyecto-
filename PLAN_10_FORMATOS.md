@@ -34,7 +34,13 @@ El refinamiento fino viene DESPUÉS, con datos reales de YouTube. Este plan est�
 6. **Sin preguntar entre formatos.** Cerrar, unir a main (PR) y seguir. Reportar solo al terminar cada tanda, con UNA hoja por formato.
 7. Brainrots: el mismo sistema que punch ("X IS TAKING OVER", colores de ficha). Nada más elaborado hasta después del domingo.
 
-## Calendario
+## Cambio de plan (26/11, por presupuesto)
+- **Lanzamos con los 6 formatos cerrados:** crusher_jaws, punch, press, slam (= bighammer), iris y two_cones.
+- **Los formatos 7 a 10 (escape, color_battle, brainrot_duel, will_multiply) quedan para DESPUÉS del lanzamiento.**
+- Brainrots sin voces: quedan solo como dibujos (los sonidos de golpes siguen igual).
+- Publicación: `.github/workflows/daily.yml` (3 por día, YouTube programado + Release de GitHub). Ver README.
+
+## Calendario (original)
 - **Miércoles:** cerrar press y slam.
 - **Jueves:** bighammer, iris, two_cones.
 - **Viernes:** escape, color_battle, brainrot_duel, will_multiply (aros concéntricos con compuertas multiplicadoras, ref raw/satisfiedbounce_will_multiply.mp4, reutiliza el aro giratorio de escape).
