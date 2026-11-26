@@ -75,6 +75,21 @@ def crusher_jaws_genome(seed):
     }
 
 
+def iris_genome(seed):
+    """IRIS (reference/formats/iris/spec.json)."""
+    r = random.Random(seed)
+    return {
+        "seed": seed, "format": "iris", "lang": "en",
+        "chars": r.sample(["tralalero", "tungtung", "cappuccina"], 3),
+        "palette": {"bg": (0.02, 0.02, 0.03), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
+        "r_big": 0.035, "r_min": 10.5, "climax_by_count": False, "t_end_full": 25.0,
+        "gravity": 0, "damping": 0.92, "wall_bounce": 0.95, "ball_bounce": 0.9, "catch_R": 0.3,
+        "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
+        "root": r.choice([130.8, 146.8, 164.8]), "timbre": r.choice(["marimba", "pluck"]),
+        "bpm": 120, "round": r.randint(2, 9),
+    }
+
+
 GENOMES = {"punch": None, "press": press_genome, "slam": slam_genome}
 
 

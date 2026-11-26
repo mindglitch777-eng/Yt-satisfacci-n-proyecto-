@@ -14,8 +14,8 @@ def main():
     ap.add_argument("--preview", action="store_true", help="guarda 6 frames PNG para revisar")
     a = ap.parse_args()
     from variation import press_genome, slam_genome, crusher_jaws_genome
-    g = {"punch": punch_genome, "press": press_genome, "slam": slam_genome,
-         "crusher_jaws": crusher_jaws_genome}.get(a.format, random_genome)(a.seed)
+    import variation as V
+    g = getattr(V, a.format + "_genome", V.random_genome)(a.seed)
     out = a.out or f"out/{g['format']}_{a.seed}.mp4"
     sim = FORMATS[g["format"]](g, fps=a.fps)
     prev = ()
