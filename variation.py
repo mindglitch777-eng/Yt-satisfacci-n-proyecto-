@@ -90,6 +90,18 @@ def iris_genome(seed):
     }
 
 
+def two_cones_genome(seed):
+    """TWO CONES (reference/formats/two_cones/spec.json): giro continuo de punch, simétrico y acelerando."""
+    g = punch_genome(seed)
+    g.update({"format": "two_cones", "spec_path": "reference/formats/two_cones/spec.json",
+              "capacity_full": 2000, "r_first": 0.03, "r_min": 7.0,
+              "head_w": 80, "head_h": 175,                      # conos largos y finos
+              "spin_early": 194, "spin_late": 419, "ritard_t": 25.0, "speed_ratio": 1.0,   # 0.93 s → 0.43 s, simétrico
+              "gravity": 900, "damping": 0.5, "pacer_ahead": 0.5,
+              "palette": {"bg": (0.0, 0.0, 0.0), "floor": (0, 0, 0), "accent": (1.0, 0.85, 0.3), "hammer": (0.8, 0.8, 0.85)}})
+    return g
+
+
 GENOMES = {"punch": None, "press": press_genome, "slam": slam_genome}
 
 

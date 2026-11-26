@@ -1,0 +1,95 @@
+{
+ "referencia": "reference/videos/raw/xbongobeats_2cones_5.3M.mp4",
+ "fuente_de_cada_dato": "hoja a 0.5 fps de todo el video + ciclo a 10 fps (0.9–2.9 s) + MEDIDAS_TOP5. Sin contador: curva a ojo.",
+ "arena": {
+  "forma": "circulo",
+  "R_px_1080": 455,
+  "aro": "se tiñe del color nuevo en cada golpe"
+ },
+ "gravedad": "leve (las bolas se juntan abajo)",
+ "maquina": {
+  "tipo": "brazos_centro",
+  "piezas": "2 conos/agujas metálicos en varillas finas desde el centro",
+  "movimiento": {
+   "tipo": "giro continuo en sentidos opuestos, simétrico: se cruzan abajo y arriba alternando",
+   "intervalo": "0.93 s → 0.43 s (acelera)"
+  }
+ },
+ "bolas": {
+  "r_inicial_R": 0.03,
+  "capacidad_full": 2000,
+  "colores": "uno por generación"
+ },
+ "multiplica": {
+  "regla": "lo que queda entre los conos al cruzarse se duplica",
+  "texto_popup": "×2 / +N"
+ },
+ "curva_conteo": [
+  [
+   0,
+   1
+  ],
+  [
+   2,
+   3
+  ],
+  [
+   4,
+   10
+  ],
+  [
+   6,
+   60
+  ],
+  [
+   8,
+   150
+  ],
+  [
+   10,
+   220
+  ],
+  [
+   12,
+   350
+  ],
+  [
+   14,
+   500
+  ],
+  [
+   16,
+   700
+  ],
+  [
+   18,
+   1000
+  ],
+  [
+   20,
+   1300
+  ],
+  [
+   22,
+   1550
+  ],
+  [
+   24,
+   1800
+  ],
+  [
+   26,
+   2000
+  ]
+ ],
+ "final": "drop: a los ~27 s desaparece el aro y las bolas se dispersan por toda la pantalla (video de 30 s)",
+ "texto_pantalla": [
+  "WAIT FOR THE DROP"
+ ],
+ "estado": "CERRADO 26-11-2026 (2 rondas): conos simétricos que se cruzan arriba/abajo, golpe que acelera 0.9 → 0.43 s, aro que destella del color nuevo, ×2 de lo atrapado, 2.000 a los 25.7 s y DROP (el aro desaparece, se dispersan) hasta 30.7 s. -14 LUFS.",
+ "pendiente": [
+  "parte de la masa queda arriba cerca del choque superior; en la referencia todo cae y se apila abajo (revisar si algo de punch anula la gravedad)",
+  "arranque más lento que la referencia (32 contra ~150 a los 8 s)",
+  "después del DROP aparece 'X WINS!' heredado de punch: la referencia no tiene ganador"
+ ]
+}
