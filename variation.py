@@ -75,6 +75,33 @@ def crusher_jaws_genome(seed):
     }
 
 
+def iris_genome(seed):
+    """IRIS (reference/formats/iris/spec.json)."""
+    r = random.Random(seed)
+    return {
+        "seed": seed, "format": "iris", "lang": "en",
+        "chars": r.sample(["tralalero", "tungtung", "cappuccina"], 3),
+        "palette": {"bg": (0.02, 0.02, 0.03), "floor": (0, 0, 0), "accent": (1.0, 0.78, 0.12), "hammer": (0.8, 0.8, 0.85)},
+        "r_big": 0.035, "r_min": 10.5, "climax_by_count": False, "t_end_full": 25.0,
+        "gravity": 0, "damping": 0.92, "wall_bounce": 0.95, "ball_bounce": 0.9, "catch_R": 0.3,
+        "scale": r.choice(["major_penta", "minor_penta", "egyptian"]),
+        "root": r.choice([130.8, 146.8, 164.8]), "timbre": r.choice(["marimba", "pluck"]),
+        "bpm": 120, "round": r.randint(2, 9),
+    }
+
+
+def two_cones_genome(seed):
+    """TWO CONES (reference/formats/two_cones/spec.json): giro continuo de punch, simétrico y acelerando."""
+    g = punch_genome(seed)
+    g.update({"format": "two_cones", "spec_path": "reference/formats/two_cones/spec.json",
+              "capacity_full": 2000, "r_first": 0.03, "r_min": 7.0,
+              "head_w": 80, "head_h": 175,                      # conos largos y finos
+              "spin_early": 194, "spin_late": 419, "ritard_t": 25.0, "speed_ratio": 1.0,   # 0.93 s → 0.43 s, simétrico
+              "gravity": 900, "damping": 0.5, "pacer_ahead": 0.5,
+              "palette": {"bg": (0.0, 0.0, 0.0), "floor": (0, 0, 0), "accent": (1.0, 0.85, 0.3), "hammer": (0.8, 0.8, 0.85)}})
+    return g
+
+
 GENOMES = {"punch": None, "press": press_genome, "slam": slam_genome}
 
 

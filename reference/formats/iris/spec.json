@@ -1,0 +1,85 @@
+{
+ "referencia": "reference/videos/raw/splitworks_iris_4.1M.mp4",
+ "fuente_de_cada_dato": "hoja a 0.5 fps de todo el video + un ciclo a 5 fps (4–6.4 s). Sin contador: curva a ojo.",
+ "arena": {
+  "forma": "circulo",
+  "R_px_1080": 455,
+  "aro": "bisel metálico grueso"
+ },
+ "gravedad": 0,
+ "maquina": {
+  "tipo": "iris",
+  "piezas": "7 cuchillas curvas con pivote en el aro",
+  "movimiento": {
+   "periodo_s": 3.7,
+   "cierre_s": 1.0,
+   "apertura_s": 1.0,
+   "curva": "cierran juntas hasta tocarse en el centro y se abren hasta quedar pegadas al aro"
+  }
+ },
+ "bolas": {
+  "r_inicial_R": 0.035,
+  "capacidad_full": 1200,
+  "colores": "uno por generación"
+ },
+ "multiplica": {
+  "regla": "lo atrapado en el centro al cerrarse se aplasta y renace ×4 (1 rosa → 4 amarillas)",
+  "texto_popup": "×4 / +N"
+ },
+ "salen": "racimo en el centro que se abre hacia afuera",
+ "curva_conteo": [
+  [
+   0,
+   1
+  ],
+  [
+   3,
+   4
+  ],
+  [
+   6,
+   6
+  ],
+  [
+   8,
+   10
+  ],
+  [
+   10,
+   16
+  ],
+  [
+   12,
+   40
+  ],
+  [
+   14,
+   80
+  ],
+  [
+   16,
+   250
+  ],
+  [
+   18,
+   550
+  ],
+  [
+   20,
+   1000
+  ],
+  [
+   21,
+   1200
+  ]
+ ],
+ "despues_de_lleno": "lleno, las cuchillas siguen cerrando con polvo de bolas aplastadas",
+ "final": "lleno con polvo; video de 27.5 s",
+ "duracion_s": 27.5,
+ "estado": "CERRADO 26-11-2026 (2 rondas): 7 cuchillas que cierran juntas cada 3.7 s, ×4 de lo atrapado en el centro, Pacer por tabla, lleno ~1.070 a los 25 s, -14 LUFS.",
+ "pendiente": [
+  "la masa queda en anillo contra el aro (centro vacío); en la referencia tapa todo el círculo con colores mezclados",
+  "final: la referencia queda llena con polvo, sin romper el aro",
+  "el radio de captura crece si el contador va atrasado (Pacer)"
+ ]
+}

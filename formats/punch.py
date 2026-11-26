@@ -58,7 +58,7 @@ class Punch(Sim):
 
     def setup(self):
         g = self.g
-        self.L = TXT[g.get("lang", "en")]
+        self.L = getattr(self, "TXT", TXT)[g.get("lang", "en")]
         self.cx, self.cy, self.R = W / 2, 905, 455
         self.space.gravity = (0, g.get("gravity", 160))   # ley 1: muy leve (terminal ≈ 57 px/s con este damping)
         self.space.damping = g.get("damping", 0.06)  # queda 6% de la velocidad tras 1 s → frenan en ~0.5 s
@@ -125,7 +125,7 @@ class Punch(Sim):
         self.cyc = dict(close_T=0.3, hold=0.1)
         import json, os
         sp = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                         "reference/formats/punch/spec.json")))
+                                         g.get("spec_path", "reference/formats/punch/spec.json"))))
         self.curve = np.array(sp["curva_conteo"], float)     # el Pacer sigue ESTA tabla (contador de la referencia)
         self.pops, self.flashes = [], []
         self.last_voice = -9
