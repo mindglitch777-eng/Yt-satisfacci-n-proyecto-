@@ -20,6 +20,7 @@ TXT = {
 
 class TwoCones(Punch):
     TXT = TXT
+    SHOW_WINNER = False          # la referencia no tiene ganador: solo el DROP
 
     def setup(self):
         super().setup()

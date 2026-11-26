@@ -1,0 +1,47 @@
+name: Videos del día
+
+on:
+  schedule:
+    - cron: "17 9 * * *"     # 06:17 en Argentina: renderiza y programa los 3 del día
+  workflow_dispatch:          # botón "Run workflow" para probar a mano
+
+permissions:
+  contents: write             # para crear el Release y guardar history.json
+
+jobs:
+  render-y-publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dependencias
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libegl1 fonts-dejavu-core
+          pip install -q -r requirements.txt
+      - name: Renderizar 3 videos
+        run: python -m publish.daily --count 3 --outdir release
+      - name: Subir a YouTube (programados)
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: python -m publish.upload --dir release
+      - name: Release con los mp4 (para bajarlos al celular)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="videos-$(date -u +%Y-%m-%d)"
+          NOTAS=$(python -c "import json,glob; print('\n'.join('- ' + json.load(open(p))['title'] for p in sorted(glob.glob('release/*.json'))))")
+          gh release create "$TAG" release/*.mp4 --title "Videos $(date -u +%d/%m/%Y)" --notes "$NOTAS" || \
+            gh release upload "$TAG" release/*.mp4 --clobber
+      - name: Guardar el historial (anti-repetición)
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add history.json
+          git commit -m "Historial: videos del $(date -u +%Y-%m-%d)" || exit 0
+          git push

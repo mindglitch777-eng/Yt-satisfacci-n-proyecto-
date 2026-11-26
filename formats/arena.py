@@ -20,7 +20,15 @@ BALL = 4
 TAU = 2 * math.pi
 
 # colores vivos de las olas (como las referencias): los 3 primeros son los de los brainrots
-WAVE_COLORS = [None, None, None, (0.55, 0.95, 0.2), (0.62, 0.35, 1.0), (1.0, 0.85, 0.15), (0.2, 0.9, 0.85)]
+WAVE_COLORS = [None, None, None, (0.55, 0.95, 0.2), (0.62, 0.35, 1.0), (1.0, 0.85, 0.15), (0.2, 0.9, 0.85),
+               (1.0, 0.45, 0.2), (0.95, 0.3, 0.55), (0.35, 0.55, 1.0), (0.9, 1.0, 0.4)]
+
+
+def wave_colors(chars, rng):
+    """colores por video: los de las fichas + 4 de la paleta de olas, elegidos y ordenados por la semilla."""
+    extra = list(WAVE_COLORS[3:])
+    rng.shuffle(extra)
+    return [c.color for c in chars] + extra[:4]
 
 
 class Arena(Sim):
@@ -47,7 +55,7 @@ class Arena(Sim):
             self.space.add(s)
             self.ring_segs.append(s)
         self.chars = [get_char(k) for k in g["chars"]]
-        self.colors = [c.color for c in self.chars] + [c for c in WAVE_COLORS[3:]]
+        self.colors = wave_colors(self.chars, self.rng)
         self.cur = 0
         self.bodies, self.col, self.rad = [], [], []
         self.r_big = g.get("r_big", 0.08) * self.R      # grandes (con cara) mientras entren cómodas
@@ -307,7 +315,7 @@ class Arena(Sim):
 
     def draw_hud(self, c):
         L, acc = self.L, self.pal["accent"]
-        n = self.n_max if self.broken_at is not None else len(self.bodies)
+        n = self.n_max                      # el contador nunca baja (la máquina aplasta antes de que renazcan)
         done = self.done_at is not None
         if not done:
             draw_text(c, L["t1"], W / 2, 170, 74, (1, 1, 1), stroke=12)
